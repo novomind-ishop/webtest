@@ -94,8 +94,11 @@ public class Main implements Runnable {
     System.out.println("Benchmark webserver performance.");
     System.out.println("Usage:");
     System.out.println("webtest <users> <runtime minutes> <avg wait between requests in s per user> <URL 1> [URL 2] ... [URL n]");
-    System.out.println("Example:");
+    System.out.println("You can set basic auth credentials if you append -u <username> -p <password> to the command line");
+    System.out.println("Example 1:");
     System.out.println("webtest 5 1 1 http://www.novomind.com/");
+    System.out.println("Example 2:");
+    System.out.println("webtest 25 1 0 http://www.novomind.com/ https://www.google.com/ -u fritz -p geheim");
   }
 
   public static void main(String[] args) throws Exception {
@@ -122,21 +125,46 @@ public class Main implements Runnable {
     HttpURLConnection.setFollowRedirects(false);
     System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
     // System.setProperty("http.keepAlive", "false");
-
-    for (int i = 0; i < args.length; i++) {
-      if (0 == i)
-        users = Integer.parseInt(args[i]);
-      if (1 == i)
-        runtime_minutes = Integer.parseInt(args[i]);
-      if (2 == i)
-        avgWait = Double.parseDouble(args[i]);
-      if (2 < i)
-        urls.add(args[i]);
-    }
+    boolean isUsername = false;
+    boolean isPassword = false;
 
     if (args.length < 4) {
       printHelp();
       System.exit(1);
+    }
+
+    for (int i = 0; i < args.length; i++) {
+
+      if (!args[i].startsWith("-") && !isPassword && !isUsername) {
+        if (0 == i)
+          users = Integer.parseInt(args[i]);
+        if (1 == i)
+          runtime_minutes = Integer.parseInt(args[i]);
+        if (2 == i)
+          avgWait = Double.parseDouble(args[i]);
+        if (2 < i)
+          urls.add(args[i]);
+      } else {
+        if (isUsername) {
+          username = args[i];
+        }
+
+        if (isPassword) {
+          password = args[i];
+        }
+
+        isPassword = false;
+        isUsername = false;
+
+        if (args[i].equals("-u")) {
+          isUsername = true;
+        }
+
+        if (args[i].equals("-p")) {
+          isPassword = true;
+        }
+      }
+
     }
 
     System.setProperty("http.maxConnections", "" + users);
@@ -148,6 +176,10 @@ public class Main implements Runnable {
     System.out.println("RUNTIME_MINUTES " + runtime_minutes);
     System.out.println("AVG_WAIT " + avgWait);
     System.out.println("estimated clicks/s " + users / avgWait);
+    if (username != null && password != null) {
+      System.out.println("using " + username + " to log in.");
+    }
+
     Main m[] = new Main[users + 1];
     Thread t[] = new Thread[users + 1];
     SessionID = new String[users + 1];
@@ -215,6 +247,7 @@ public class Main implements Runnable {
         System.out.println(i + " " + distribution[i]);
         req = newreq;
       }
+    System.exit(0);
   }
 
   public static String encode(String source) {
