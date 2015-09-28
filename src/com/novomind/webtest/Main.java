@@ -106,7 +106,8 @@ public class Main implements Runnable {
     System.out.println("You can set basic auth credentials if you append -u <username> -p <password> to the command line");
     System.out
         .println("If you want to use POST instead of GET: Just separate the url and the post body with a POST string: [URL]POST[POST-Body]");
-    System.out.println("-s before a url means that this url will be requested only once. (add to basket action, login etc).");
+    System.out
+        .println("-s will cause the webtest that the following url will be requested only once. (add to basket action, login etc).");
     System.out.println("Example 1:");
     System.out.println("webtest 5 1 1 http://www.novomind.com/");
     System.out.println("Example 2:");
@@ -150,7 +151,6 @@ public class Main implements Runnable {
     }
 
     for (int i = 0; i < args.length; i++) {
-
       if (!args[i].startsWith("-") && !isPassword && !isUsername) {
         if (0 == i)
           users = Integer.parseInt(args[i]);
@@ -296,7 +296,6 @@ public class Main implements Runnable {
   }
 
   public long requestUrl(String url, int user_id, boolean newSession, String nexturl) {
-    boolean requestUrlOnlyOncePerUser = false;
     Map<String, Boolean> urlAlreadyUsedMap = urlForUserAlreadyUsed.get(user_id);
 
     if (singleUseUrls.contains(url)) {
