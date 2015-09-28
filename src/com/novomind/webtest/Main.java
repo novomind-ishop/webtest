@@ -8,7 +8,11 @@ import java.net.URLEncoder;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.Map;
+import java.util.Set;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -89,16 +93,27 @@ public class Main implements Runnable {
 
   static ArrayList<String> urls = new ArrayList<String>();
 
+  static Set<String> singleUseUrls = new HashSet<String>();
+
+  static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<Integer, Map<String, Boolean>>();
+
   public static void printHelp() {
     System.out.println("This is novomind webtest");
     System.out.println("Benchmark webserver performance.");
-    System.out.println("Usage:");
-    System.out.println("webtest <users> <runtime minutes> <avg wait between requests in s per user> <URL 1> [URL 2] ... [URL n]");
+    System.out.println("Usage [x] = optional; <x> = mandatory:");
+    System.out
+        .println("webtest <users> <runtime minutes> <avg wait between requests in s per user> [-s] <URL 1> [-s] [URL 2] ... [URL n]");
     System.out.println("You can set basic auth credentials if you append -u <username> -p <password> to the command line");
+    System.out
+        .println("If you want to use POST instead of GET: Just separate the url and the post body with a POST string: [URL]POST[POST-Body]");
+    System.out.println("-s before a url means that this url will be requested only once. (add to basket action, login etc).");
     System.out.println("Example 1:");
     System.out.println("webtest 5 1 1 http://www.novomind.com/");
     System.out.println("Example 2:");
     System.out.println("webtest 25 1 0 http://www.novomind.com/ https://www.google.com/ -u fritz -p geheim");
+    System.out.println("Example 3:");
+    System.out
+        .println("webtest 1 1 0 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=40551201-0050&categoryId=53459524&amount=1");
   }
 
   public static void main(String[] args) throws Exception {
@@ -127,6 +142,7 @@ public class Main implements Runnable {
     // System.setProperty("http.keepAlive", "false");
     boolean isUsername = false;
     boolean isPassword = false;
+    boolean isSingleUrl = false;
 
     if (args.length < 4) {
       printHelp();
@@ -142,19 +158,23 @@ public class Main implements Runnable {
           runtime_minutes = Integer.parseInt(args[i]);
         if (2 == i)
           avgWait = Double.parseDouble(args[i]);
-        if (2 < i)
+        if (2 < i) {
           urls.add(args[i]);
+          if (isSingleUrl) {
+            singleUseUrls.add(args[i]);
+            isSingleUrl = false;
+          }
+        }
       } else {
         if (isUsername) {
           username = args[i];
+          isUsername = false;
         }
 
         if (isPassword) {
           password = args[i];
+          isPassword = false;
         }
-
-        isPassword = false;
-        isUsername = false;
 
         if (args[i].equals("-u")) {
           isUsername = true;
@@ -162,6 +182,10 @@ public class Main implements Runnable {
 
         if (args[i].equals("-p")) {
           isPassword = true;
+        }
+
+        if (args[i].equals("-s")) {
+          isSingleUrl = true;
         }
       }
 
@@ -272,6 +296,25 @@ public class Main implements Runnable {
   }
 
   public long requestUrl(String url, int user_id, boolean newSession, String nexturl) {
+    boolean requestUrlOnlyOncePerUser = false;
+    Map<String, Boolean> urlAlreadyUsedMap = urlForUserAlreadyUsed.get(user_id);
+
+    if (singleUseUrls.contains(url)) {
+      if (urlAlreadyUsedMap == null) {
+        urlAlreadyUsedMap = new HashMap<String, Boolean>();
+        urlForUserAlreadyUsed.put(user_id, urlAlreadyUsedMap);
+      } else {
+        Boolean used = urlAlreadyUsedMap.get(url);
+        if (used != null && used) {
+          return 0;
+        }
+      }
+
+      System.out.println("First use of single use url.");
+      urlAlreadyUsedMap.put(url, true);
+
+    }
+
     url = url.replaceAll("USER", String.format("%04d", new Object[] { Integer.valueOf(user_id + 1) }));
     byte buffer[] = new byte[65536];
     long requestStart = System.nanoTime();
@@ -279,6 +322,7 @@ public class Main implements Runnable {
     long time = 0;
     long t2;
     int response = -1;
+
     synchronized (o) {
       active_requests++;
     }
