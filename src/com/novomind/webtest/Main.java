@@ -1,12 +1,17 @@
 package com.novomind.webtest;
 
+import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -108,13 +113,15 @@ public class Main implements Runnable {
         .println("If you want to use POST instead of GET: Just separate the url and the post body with a POST string: [URL]POST[POST-Body]");
     System.out
         .println("-s will cause the webtest that the following url will be requested only once. (add to basket action, login etc).");
+    System.out.println("In case you want to load (additional) URLs from a file, use -f <FILENAME>. One URL per line.");
     System.out.println("Example 1:");
     System.out.println("webtest 5 1 1 http://www.novomind.com/");
     System.out.println("Example 2:");
     System.out.println("webtest 25 1 0 http://www.novomind.com/ https://www.google.com/ -u fritz -p geheim");
     System.out.println("Example 3:");
     System.out
-        .println("webtest 1 1 0 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=40551201-0050&categoryId=53459524&amount=1");
+        .println(
+            "webtest 1 1 0 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=40551201-0050&categoryId=53459524&amount=1");
   }
 
   public static void main(String[] args) throws Exception {
@@ -144,6 +151,7 @@ public class Main implements Runnable {
     boolean isUsername = false;
     boolean isPassword = false;
     boolean isSingleUrl = false;
+    boolean isUrlFile = false;
 
     if (args.length < 4) {
       printHelp();
@@ -151,7 +159,7 @@ public class Main implements Runnable {
     }
 
     for (int i = 0; i < args.length; i++) {
-      if (!args[i].startsWith("-") && !isPassword && !isUsername) {
+      if (!args[i].startsWith("-") && !isPassword && !isUsername && !isUrlFile) {
         if (0 == i)
           users = Integer.parseInt(args[i]);
         if (1 == i)
@@ -176,12 +184,21 @@ public class Main implements Runnable {
           isPassword = false;
         }
 
+        if (isUrlFile) {
+          urls.addAll(loadUrlsFromFile(args[i]));
+          isUrlFile = false;
+        }
+
         if (args[i].equals("-u")) {
           isUsername = true;
         }
 
         if (args[i].equals("-p")) {
           isPassword = true;
+        }
+
+        if (args[i].equals("-f")) {
+          isUrlFile = true;
         }
 
         if (args[i].equals("-s")) {
@@ -272,6 +289,29 @@ public class Main implements Runnable {
         req = newreq;
       }
     System.exit(0);
+  }
+
+  private static Collection<String> loadUrlsFromFile(String filepath) throws IOException {
+    FileInputStream fis = new FileInputStream(filepath);
+    BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
+
+    Collection<String> urls = new ArrayList<String>();
+
+    try {
+      String line = reader.readLine();
+      while (line != null) {
+        urls.add(line);
+        line = reader.readLine();
+      }
+
+    } catch (IOException ex) {
+      System.out.println("Unable to open urlfile: " + filepath);
+    } finally {
+      reader.close();
+      fis.close();
+    }
+
+    return urls;
   }
 
   public static String encode(String source) {
