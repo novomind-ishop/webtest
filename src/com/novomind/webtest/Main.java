@@ -52,7 +52,7 @@ public class Main implements Runnable {
 
   static int ramp_minutes = 1;
 
-  int user_id;
+  int userId;
 
   static long start;
 
@@ -120,8 +120,7 @@ public class Main implements Runnable {
     System.out.println("webtest 25 1 0 http://www.novomind.com/ https://www.google.com/ -u fritz -p geheim");
     System.out.println("Example 3:");
     System.out
-        .println(
-            "webtest 1 1 0 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=40551201-0050&categoryId=53459524&amount=1");
+        .println("webtest 1 1 0 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=40551201-0050&categoryId=53459524&amount=1");
   }
 
   public static void main(String[] args) throws Exception {
@@ -339,12 +338,12 @@ public class Main implements Runnable {
   }
 
   public Main(int user_id) {
-    this.user_id = user_id;
+    this.userId = user_id;
   }
 
   public void message(String s) {
     System.out.println("users " + active_users + " active " + active_requests + " time " + nanoString(System.nanoTime() - start)
-        + " user " + user_id + ": " + s);
+        + (userId != -1 ? (" user " + userId + ": ") : " ") + s);
   }
 
   public long requestUrl(String url, int user_id, boolean newSession, String nexturl) {
@@ -360,8 +359,6 @@ public class Main implements Runnable {
           return 0;
         }
       }
-
-      System.out.println("First use of single use url.");
       urlAlreadyUsedMap.put(url, true);
 
     }
@@ -645,7 +642,7 @@ public class Main implements Runnable {
     int step = 0;
     long now;
     while ((now = System.nanoTime()) <= end_time) {
-      if (user_id == -1) {
+      if (userId == -1) {
         long t2 = now - start;
         if (step > 0)
           synchronized (o) {
@@ -670,7 +667,7 @@ public class Main implements Runnable {
         t2 -= System.nanoTime();
         realsleep(t2 / 1000000);
       } else {
-        do_step(user_id, step++);
+        do_step(userId, step++);
         if (error_count >= MAX_ERRORS)
           break;
       }
