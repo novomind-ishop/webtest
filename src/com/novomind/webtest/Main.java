@@ -103,24 +103,50 @@ public class Main implements Runnable {
   static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<Integer, Map<String, Boolean>>();
 
   public static void printHelp() {
-    System.out.println("This is novomind webtest");
-    System.out.println("Benchmark webserver performance.");
-    System.out.println("Usage [x] = optional; <x> = mandatory:");
+    System.out.println("This is the novomind webtest tool");
     System.out
-        .println("webtest <users> <runtime minutes> <avg wait between requests in s per user> [-s] <URL 1> [-s] [URL 2] ... [URL n]");
-    System.out.println("You can set basic auth credentials if you append -u <username> -p <password> to the command line");
-    System.out
-        .println("If you want to use POST instead of GET: Just separate the url and the post body with a POST string: [URL]POST[POST-Body]");
-    System.out
-        .println("-s will cause the webtest that the following url will be requested only once. (add to basket action, login etc).");
-    System.out.println("In case you want to load (additional) URLs from a file, use -f <FILENAME>. One URL per line.");
-    System.out.println("Example 1:");
+        .println("It benchmarks the performance of a webservice, by requesting URLs and measuring the time of each request.");
+    System.out.println("When all request are finished/have answered, a small staticstis is presented.");
+    System.out.println("");
+    System.out.println("Usage:");
+    System.out.println(" webtest users runtime delay [OPTION...] URL...");
+    System.out.println("");
+    System.out.println(" users     The number of users/clients that simultaneously request the URLs.");
+    System.out.println(" runtime   The duration of this test in minutes.");
+    System.out.println(
+        " delay     Delay between two requests of the same user. If 0, then URLs are requested as fast as possible (dangerous)");
+    System.out.println(" URL...    One or more URLs that should be requested. See URLs.");
+    System.out.println("");
+    System.out.println("Options:");
+    System.out.println(" -u user   The username, that will be used for basic authentication.");
+    System.out.println(" -p pass   The password, that will be used for basic authentication.");
+    System.out.println(" -f file   The file from which URLs get loaded.");
+    System.out.println("");
+    System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
+    System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
+    System.out.println(" URL       URLs are expected in the general http://site/file.html?page=123 way.");
+    System.out.println("           Also https is supported, even though the certificate is not validated!");
+    System.out.println(" POST      Add POST at the end of the URL and all data after POST will be posted.");
+    System.out.println("");
+    System.out.println("Output:");
+    System.out.println(
+        " The output are pairs of two numbers, where the first number is a answer time in milliseconds and the second number, who often this time was achieved.");
+    System.out.println(" In between are certain separating lines, like ---percentile---.");
+    System.out.println("");
+    System.out.println("");
+    System.out.println("Examples:");
     System.out.println("webtest 5 1 1 http://www.novomind.com/");
-    System.out.println("Example 2:");
-    System.out.println("webtest 25 1 0 http://www.novomind.com/ https://www.google.com/ -u fritz -p geheim");
-    System.out.println("Example 3:");
-    System.out
-        .println("webtest 1 1 0 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=40551201-0050&categoryId=53459524&amount=1");
+    System.out.println(
+        " Five users request the site http://www.novomind.com/ for 1 minute with a 1 second delay between each request.");
+    System.out.println("");
+    System.out.println("webtest 25 1 0 http://www.novomind.com/hiddenarea/ https://www.google.com/ -u fritz -p geheim");
+    System.out.println(
+        " 25 users request the site http://www.novomind.com/hiddenarea/ and https://www.google.com/ for 1 minute with a 0 second delay (creates a lot of requests!). For all (both) sites the user 'fritz' and password 'geheim' is used as authentication.");
+    System.out.println("");
+    System.out.println(
+        "webtest 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
+    System.out.println(
+        " 1 user requests for one minute with a request delay of 10 seconds the site www.shop.com over and over. The second url is requested only once (-s) and has additional POST information.");
   }
 
   public static void main(String[] args) throws Exception {
