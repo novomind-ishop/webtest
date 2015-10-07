@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,126 +29,71 @@ import javax.net.ssl.X509TrustManager;
 import sun.misc.BASE64Encoder;
 
 public class Main implements Runnable {
-  static HostnameVerifier hostnameVerifier;
-
-  static TrustManager[] trustAllCerts;
-
-  static SSLContext sslContext;
-
-  static SSLSocketFactory sslSocketFactory;
-
-  static String username;
-
-  static String password;
-
-  static boolean rampstart = true;
-
   static int users = 300;
-
+  static int runtime_minutes = 1;
   static double avgWait = 0;
 
-  static int runtime_minutes = 1;
+  static String username;
+  static String password;
 
-  static int ramp_minutes = 1;
-
-  int userId;
-
-  static long start;
-
-  static int active_requests = 0;
-
-  static long total_requests = 0;
-
-  static long delta_requests = 0;
+  static ArrayList<String> urls = new ArrayList<String>();
+  static Set<String> singleUseUrls = new HashSet<String>();
+  static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<Integer, Map<String, Boolean>>();
 
   static int active_users = 0;
 
-  static Object o = new Object();
-
-  static Hashtable urltimes = new Hashtable();
-
-  static Hashtable urlcounts = new Hashtable();
-
-  static Hashtable urlsize = new Hashtable();
-
-  static byte buffer[] = new byte[1048576];
-
-  static final int MAX_ERRORS = 100;
-
-  static int error_count = 0;
-
-  static long total_len = 0;
-
-  static long last_msg = System.nanoTime();
-
-  static long first_msg = last_msg;
-
-  static long last_len;
-
+  static long start;
   static long end_time;
+  static int active_requests = 0;
+  static long total_requests = 0;
+  static long delta_requests = 0;
 
   static String[] SessionID;
+  static Hashtable urltimes = new Hashtable();
+  static Hashtable urlcounts = new Hashtable();
+  static Hashtable urlsize = new Hashtable();
 
   static int[] distribution = new int[100000];
 
-  static double ramp_delay;
+  static long last_msg = System.nanoTime();
+  static long first_msg = last_msg;
+  static long last_len;
+  static long total_len = 0;
+  static int error_count = 0;
+  static final int MAX_ERRORS = 100;
 
+  static Object o = new Object();
+
+  static boolean rampstart = true;
+  static double ramp_delay;
+  // static int ramp_minutes = 1;
+
+  static HostnameVerifier hostnameVerifier;
+  static TrustManager[] trustAllCerts;
+  static SSLContext sslContext;
+  static SSLSocketFactory sslSocketFactory;
+
+  // static byte buffer[] = new byte[1048576];
+
+  // static final boolean produktion = true;
+  // static final boolean secure = false;
+  // static final String host = "";
+  // static final int userbrowsratio = 5;
+
+  // For each Runnable
+  int userId;
   long start_time;
 
-  static ArrayList<String> urls = new ArrayList<String>();
-
-  static Set<String> singleUseUrls = new HashSet<String>();
-
-  static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<Integer, Map<String, Boolean>>();
-
-  public static void printHelp() {
-    System.out.println("This is the novomind webtest tool");
-    System.out
-        .println("It benchmarks the performance of a webservice, by requesting URLs and measuring the time of each request.");
-    System.out.println("When all request are finished/have answered, a small statistic is presented.");
-    System.out.println("");
-    System.out.println("Usage:");
-    System.out.println(" webtest users runtime delay [OPTION...] URL...");
-    System.out.println("");
-    System.out.println(" users     The number of users/clients that simultaneously request the URLs.");
-    System.out.println(" runtime   The duration of this test in minutes.");
-    System.out.println(
-        " delay     Delay between two requests of the same user. If 0, then URLs are requested as fast as possible (dangerous!)");
-    System.out.println(" URL...    One or more URLs that should be requested. See URLs section.");
-    System.out.println("");
-    System.out.println("Options:");
-    System.out.println(" -u user   The username, that will be used for basic authentication.");
-    System.out.println(" -p pass   The password, that will be used for basic authentication.");
-    System.out.println(
-        " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning.");
-    System.out.println("");
-    System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
-    System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
-    System.out.println(" URL       URLs are expected in the general http://site/file.html?page=123 way.");
-    System.out.println("           Also https is supported, even though the certificate is not validated!");
-    System.out.println(" POST      Add POST at the end of the URL and all data after POST will be posted.");
-    System.out.println("");
-    System.out.println("Output:");
-    System.out.println(
-        " The output are pairs of two numbers, where the first number is an answer time in milliseconds and the second number, who often this time was achieved.");
-    System.out.println(" In between are certain separating lines, like ---percentile---, for simple statistic reasons.");
-    System.out.println("");
-    System.out.println("");
-    System.out.println("Examples:");
-    System.out.println("webtest 5 1 1 http://www.novomind.com/");
-    System.out.println(
-        " Five users request the site http://www.novomind.com/ for 1 minute with a 1 second delay between each request.");
-    System.out.println("");
-    System.out.println("webtest 25 3 0 http://www.novomind.com/hiddenarea/ https://www.google.com/ -u fritz -p geheim");
-    System.out.println(
-        " 25 users request the site http://www.novomind.com/hiddenarea/ and https://www.google.com/ for 3 minutes with a 0 second delay (creates a lot of requests!). For all (both) sites the user 'fritz' and password 'geheim' is used as authentication.");
-    System.out.println("");
-    System.out.println(
-        "webtest 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
-    System.out.println(
-        " 1 user requests for one minute with a request delay of 10 seconds the site www.shop.com over and over. The second url is requested only once (-s) and has additional POST information.");
+  ///////////////////////
+  /// Constructor
+  ///////////////////////
+  public Main(int user_id) {
+    this.userId = user_id;
   }
 
+  ///////////////////////
+  /// MAIN
+  ///////////////////////
   public static void main(String[] args) throws Exception {
     hostnameVerifier = new HostnameVerifier() {
 
@@ -317,6 +261,54 @@ public class Main implements Runnable {
     System.exit(0);
   }
 
+  public static void printHelp() {
+    System.out.println("This is the novomind webtest tool");
+    System.out
+        .println("It benchmarks the performance of a webservice, by requesting URLs and measuring the time of each request.");
+    System.out.println("When all request are finished/have answered, a small statistic is presented.");
+    System.out.println("");
+    System.out.println("Usage:");
+    System.out.println(" webtest users runtime delay [OPTION...] URL...");
+    System.out.println("");
+    System.out.println(" users     The number of users/clients that simultaneously request the URLs.");
+    System.out.println(" runtime   The duration of this test in minutes.");
+    System.out.println(
+        " delay     Delay between two requests of the same user. If 0, then URLs are requested as fast as possible (dangerous!)");
+    System.out.println(" URL...    One or more URLs that should be requested. See URLs section.");
+    System.out.println("");
+    System.out.println("Options:");
+    System.out.println(" -u user   The username, that will be used for basic authentication.");
+    System.out.println(" -p pass   The password, that will be used for basic authentication.");
+    System.out.println(
+        " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning.");
+    System.out.println("");
+    System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
+    System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
+    System.out.println(" URL       URLs are expected in the general http://site/file.html?page=123 way.");
+    System.out.println("           Also https is supported, even though the certificate is not validated!");
+    System.out.println(" POST      Add POST at the end of the URL and all data after POST will be posted.");
+    System.out.println("");
+    System.out.println("Output:");
+    System.out.println(
+        " The output are pairs of two numbers, where the first number is an answer time in milliseconds and the second number, who often this time was achieved.");
+    System.out.println(" In between are certain separating lines, like ---percentile---, for simple statistic reasons.");
+    System.out.println("");
+    System.out.println("");
+    System.out.println("Examples:");
+    System.out.println("webtest 5 1 1 http://www.novomind.com/");
+    System.out.println(
+        " Five users request the site http://www.novomind.com/ for 1 minute with a 1 second delay between each request.");
+    System.out.println("");
+    System.out.println("webtest 25 3 0 http://www.novomind.com/hiddenarea/ https://www.google.com/ -u fritz -p geheim");
+    System.out.println(
+        " 25 users request the site http://www.novomind.com/hiddenarea/ and https://www.google.com/ for 3 minutes with a 0 second delay (creates a lot of requests!). For all (both) sites the user 'fritz' and password 'geheim' is used as authentication.");
+    System.out.println("");
+    System.out.println(
+        "webtest 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
+    System.out.println(
+        " 1 user requests for one minute with a request delay of 10 seconds the site www.shop.com over and over. The second url is requested only once (-s) and has additional POST information.");
+  }
+
   private static Collection<String> loadUrlsFromFile(String filepath) throws IOException {
     FileInputStream fis = new FileInputStream(filepath);
     BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
@@ -352,28 +344,96 @@ public class Main implements Runnable {
     return urls;
   }
 
-  public static String encode(String source) {
-    BASE64Encoder enc = new sun.misc.BASE64Encoder();
-    return (enc.encode(source.getBytes()));
+  private static String x(long l) {
+    String s = "" + l;
+    String ret = "";
+    int j = 0;
+    for (int i = s.length() - 1; i >= 0; i--) {
+      ret = s.charAt(i) + ret;
+      if ((++j % 3) == 0 && i > 0)
+        ret = "." + ret;
+    }
+    return ret;
   }
 
-  static String nanoString(long l) {
-    String ret = ("" + l).trim();
-    while (ret.length() < 10)
-      ret = "0" + ret;
-    return ret.substring(0, ret.length() - 9) + "," + ret.substring(ret.length() - 9);
+  ///////////////////////
+  /// RUN for Runnable
+  ///////////////////////
+  public void run() {
+    int step = 0;
+    long now;
+    while ((now = System.nanoTime()) <= end_time) {
+      if (userId == -1) {
+        long t2 = now - start;
+        if (step > 0)
+          synchronized (o) {
+            double delta = (t2 - last_msg);
+            delta = delta * 0.000000128;
+            double delta2 = t2;
+            delta2 = delta2 * 0.000000128;
+            double delta3 = (t2 - last_msg);
+            delta3 = delta3 * 0.000000001;
+
+            message("Requests: " + total_requests + " requests/s " + Math.round((total_requests - delta_requests) / delta3)
+                + " KBit: " + Math.round((total_len - last_len) / delta) + " KBit avg:" + Math.round((total_len) / delta2)
+                + " req/s avg " + total_requests * 1e9 / t2);
+
+            delta_requests = total_requests;
+            last_len = total_len;
+            last_msg = t2;
+          }
+        t2 = ++step;
+        t2 *= 1000000000;
+        t2 += start;
+        t2 -= System.nanoTime();
+        realsleep(t2 / 1000000);
+      } else {
+        do_step(userId, step++);
+        if (error_count >= MAX_ERRORS)
+          break;
+      }
+    }
   }
 
-  public Main(int user_id) {
-    this.userId = user_id;
+  private void do_step(int user_id, int step) {
+    do_step(user_id, step, true);
   }
 
-  public void message(String s) {
-    System.out.println("users " + active_users + " active " + active_requests + " time " + nanoString(System.nanoTime() - start)
-        + (userId != -1 ? (" user " + userId + ": ") : " ") + s);
+  private void do_step(int user_id, int step, boolean wait) {
+    if (rampstart && step == 0) {
+      realsleep(Math.round(user_id * ramp_delay));
+      synchronized (o) {
+        active_users++;
+      }
+    }
+    if (wait)
+      sleep(user_id, step);
+    if (System.nanoTime() > end_time)
+      return;
+    String url = "";
+    url = urls.get(step % urls.size());
+
+    if (!wait)
+      message(url);
+    boolean newSession = (step % urls.size()) == 0;
+    newSession = false;
+
+    String sid = SessionID[user_id];
+    if (sid == null)
+      sid = "";
+    if (sid != null) {
+      sid = sid.substring(sid.indexOf("=") + 1);
+    }
+    url = url.replace("##>SESSIONID<##", sid);
+    String nexturl = "";
+    int idx = (step + 1) % urls.size();
+    if (idx != 0) {
+      nexturl = urls.get(idx);
+    }
+    requestUrl(url, user_id, newSession, nexturl);
   }
 
-  public long requestUrl(String url, int user_id, boolean newSession, String nexturl) {
+  private long requestUrl(String url, int user_id, boolean newSession, String nexturl) {
     Map<String, Boolean> urlAlreadyUsedMap = urlForUserAlreadyUsed.get(user_id);
 
     if (singleUseUrls.contains(url)) {
@@ -531,65 +591,24 @@ public class Main implements Runnable {
     return time;
   }
 
-  public static String stringToHTML(String string) {
-    StringBuffer sb = new StringBuffer(string.length());
-    boolean lastWasBlankChar = false;
-    int len = string.length();
-    char c;
-
-    for (int i = 0; i < len; i++) {
-      c = string.charAt(i);
-      if (c == ' ') {
-        if (lastWasBlankChar) {
-          lastWasBlankChar = false;
-          sb.append("&nbsp;");
-        } else {
-          lastWasBlankChar = true;
-          sb.append(' ');
-        }
-
-      } else {
-        lastWasBlankChar = false;
-        //
-        // HTML Special Chars
-        if (c == '"') {
-          sb.append("&quot;");
-        } else {
-          int ci = 0xffff & c;
-          if (ci < 160)
-            sb.append(c);
-          else {
-            sb.append("&#");
-            sb.append(new Integer(ci).toString());
-            sb.append(';');
-          }
-        }
-      }
-    }
-    return sb.toString();
+  private static String encode(String source) {
+    BASE64Encoder enc = new sun.misc.BASE64Encoder();
+    return (enc.encode(source.getBytes()));
   }
 
-  public static String x(long l) {
-    String s = "" + l;
-    String ret = "";
-    int j = 0;
-    for (int i = s.length() - 1; i >= 0; i--) {
-      ret = s.charAt(i) + ret;
-      if ((++j % 3) == 0 && i > 0)
-        ret = "." + ret;
-    }
-    return ret;
+  private void message(String s) {
+    System.out.println("users " + active_users + " active " + active_requests + " time " + nanoString(System.nanoTime() - start)
+        + (userId != -1 ? (" user " + userId + ": ") : " ") + ": " + s);
   }
 
-  public void realsleep(long waittime) {
-    if (waittime > 0)
-      try {
-        Thread.sleep(waittime);
-      } catch (Exception e) {
-      }
+  private static String nanoString(long l) {
+    String ret = ("" + l).trim();
+    while (ret.length() < 10)
+      ret = "0" + ret;
+    return ret.substring(0, ret.length() - 9) + "," + ret.substring(ret.length() - 9);
   }
 
-  public void sleep(int user_id, int step) {
+  private void sleep(int user_id, int step) {
     if (avgWait > 0) {
       long now = System.nanoTime();
       if (step == 0)
@@ -611,101 +630,65 @@ public class Main implements Runnable {
     }
   }
 
-  static final boolean produktion = true;
-
-  static final boolean secure = false;
-
-  static final String host = "";
-
-  static String enc(String s) {
-    try {
-      return URLEncoder.encode(s, "UTF-8");
-    } catch (Exception e) {
-      return s;
-    }
-  }
-
-  static final int userbrowsratio = 5;
-
-  public void do_step(int user_id, int step, boolean wait) {
-    if (rampstart && step == 0) {
-      realsleep(Math.round(user_id * ramp_delay));
-      synchronized (o) {
-        active_users++;
+  private void realsleep(long waittime) {
+    if (waittime > 0)
+      try {
+        Thread.sleep(waittime);
+      } catch (Exception e) {
       }
-    }
-    if (wait)
-      sleep(user_id, step);
-    if (System.nanoTime() > end_time)
-      return;
-    String url = "";
-    url = urls.get(step % urls.size());
-
-    if (!wait)
-      message(url);
-    boolean newSession = (step % urls.size()) == 0;
-    newSession = false;
-
-    String sid = SessionID[user_id];
-    if (sid == null)
-      sid = "";
-    if (sid != null) {
-      sid = sid.substring(sid.indexOf("=") + 1);
-    }
-    url = url.replace("##>SESSIONID<##", sid);
-    String nexturl = "";
-    int idx = (step + 1) % urls.size();
-    if (idx != 0) {
-      nexturl = urls.get(idx);
-    }
-    requestUrl(url, user_id, newSession, nexturl);
   }
 
-  public void do_step(int user_id, int step) {
-    do_step(user_id, step, true);
-  }
+  // public static String stringToHTML(String string) {
+  // StringBuffer sb = new StringBuffer(string.length());
+  // boolean lastWasBlankChar = false;
+  // int len = string.length();
+  // char c;
+  //
+  // for (int i = 0; i < len; i++) {
+  // c = string.charAt(i);
+  // if (c == ' ') {
+  // if (lastWasBlankChar) {
+  // lastWasBlankChar = false;
+  // sb.append("&nbsp;");
+  // } else {
+  // lastWasBlankChar = true;
+  // sb.append(' ');
+  // }
+  //
+  // } else {
+  // lastWasBlankChar = false;
+  // //
+  // // HTML Special Chars
+  // if (c == '"') {
+  // sb.append("&quot;");
+  // } else {
+  // int ci = 0xffff & c;
+  // if (ci < 160)
+  // sb.append(c);
+  // else {
+  // sb.append("&#");
+  // sb.append(new Integer(ci).toString());
+  // sb.append(';');
+  // }
+  // }
+  // }
+  // }
+  // return sb.toString();
+  // }
 
-  public void run() {
-    int step = 0;
-    long now;
-    while ((now = System.nanoTime()) <= end_time) {
-      if (userId == -1) {
-        long t2 = now - start;
-        if (step > 0)
-          synchronized (o) {
-            double delta = (t2 - last_msg);
-            delta = delta * 0.000000128;
-            double delta2 = t2;
-            delta2 = delta2 * 0.000000128;
-            double delta3 = (t2 - last_msg);
-            delta3 = delta3 * 0.000000001;
+  // static String enc(String s) {
+  // try {
+  // return URLEncoder.encode(s, "UTF-8");
+  // } catch (Exception e) {
+  // return s;
+  // }
+  // }
 
-            message("Requests: " + total_requests + " requests/s " + Math.round((total_requests - delta_requests) / delta3)
-                + " KBit: " + Math.round((total_len - last_len) / delta) + " KBit avg:" + Math.round((total_len) / delta2)
-                + " req/s avg " + total_requests * 1e9 / t2);
-
-            delta_requests = total_requests;
-            last_len = total_len;
-            last_msg = t2;
-          }
-        t2 = ++step;
-        t2 *= 1000000000;
-        t2 += start;
-        t2 -= System.nanoTime();
-        realsleep(t2 / 1000000);
-      } else {
-        do_step(userId, step++);
-        if (error_count >= MAX_ERRORS)
-          break;
-      }
-    }
-  }
-
-  public void initCache() {
-    total_requests = 0;
-    urltimes = new Hashtable();
-    urlcounts = new Hashtable();
-    urlsize = new Hashtable();
-  }
+  // public void initCache() {
+  // total_requests = 0;
+  // urltimes = new Hashtable();
+  // urlcounts = new Hashtable();
+  // urlsize = new Hashtable();
+  // }
 
 }
