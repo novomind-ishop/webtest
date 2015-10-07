@@ -66,19 +66,14 @@ public class Main implements Runnable {
 
   static boolean rampstart = true;
   static double ramp_delay;
-  // static int ramp_minutes = 1;
 
   static HostnameVerifier hostnameVerifier;
   static TrustManager[] trustAllCerts;
   static SSLContext sslContext;
   static SSLSocketFactory sslSocketFactory;
 
-  // static byte buffer[] = new byte[1048576];
-
-  // static final boolean produktion = true;
-  // static final boolean secure = false;
-  // static final String host = "";
-  // static final int userbrowsratio = 5;
+  /** Request timeout in milliseconds */
+  static final int REQUEST_TIMEOUT = 30000;
 
   // For each Runnable
   int userId;
@@ -220,16 +215,20 @@ public class Main implements Runnable {
       System.out.println("url " + k + " requested " + tc.longValue() + " times " + " total time " + x(tt.longValue()) + " avg "
           + x((tt.longValue() / tc.longValue())) + " bytes " + x(sz.longValue()) + " avg " + x(sz.longValue() / tc.longValue()));
     }
+
     System.out.println("avg requests per second " + (total_requests * 1000000000 / (System.nanoTime() - start)));
+
     long req = 0;
     int percentile = 90;
     long avg = 0;
-    for (int i = 0; i < distribution.length; i++)
+    for (int i = 0; i < distribution.length; i++) {
       if (distribution[i] > 0) {
         avg += i * distribution[i];
       }
+    }
     avg /= total_requests;
-    for (int i = 0; i < distribution.length; i++)
+
+    for (int i = 0; i < distribution.length; i++) {
       if (distribution[i] > 0) {
         long newreq = req + distribution[i];
         if (i > avg) {
@@ -258,6 +257,9 @@ public class Main implements Runnable {
         System.out.println(i + " " + distribution[i]);
         req = newreq;
       }
+    }
+    System.out.println("The timeout was at: " + REQUEST_TIMEOUT);
+
     System.exit(0);
   }
 
@@ -476,6 +478,8 @@ public class Main implements Runnable {
         ((HttpsURLConnection) hc).setSSLSocketFactory(sslSocketFactory);
       }
 
+      hc.setReadTimeout(REQUEST_TIMEOUT);
+
       if (SessionID[user_id] != null && !newSession) {
         // message ("using session id " + SessionID [user_id]);
 
@@ -557,7 +561,7 @@ public class Main implements Runnable {
       is.close();
       // hc.disconnect ();
     } catch (Exception e) {
-      message(e.toString());
+      message(e.toString() + " for " + url);
       synchronized (o) {
         error_count++;
       }
@@ -637,58 +641,4 @@ public class Main implements Runnable {
       } catch (Exception e) {
       }
   }
-
-  // public static String stringToHTML(String string) {
-  // StringBuffer sb = new StringBuffer(string.length());
-  // boolean lastWasBlankChar = false;
-  // int len = string.length();
-  // char c;
-  //
-  // for (int i = 0; i < len; i++) {
-  // c = string.charAt(i);
-  // if (c == ' ') {
-  // if (lastWasBlankChar) {
-  // lastWasBlankChar = false;
-  // sb.append("&nbsp;");
-  // } else {
-  // lastWasBlankChar = true;
-  // sb.append(' ');
-  // }
-  //
-  // } else {
-  // lastWasBlankChar = false;
-  // //
-  // // HTML Special Chars
-  // if (c == '"') {
-  // sb.append("&quot;");
-  // } else {
-  // int ci = 0xffff & c;
-  // if (ci < 160)
-  // sb.append(c);
-  // else {
-  // sb.append("&#");
-  // sb.append(new Integer(ci).toString());
-  // sb.append(';');
-  // }
-  // }
-  // }
-  // }
-  // return sb.toString();
-  // }
-
-  // static String enc(String s) {
-  // try {
-  // return URLEncoder.encode(s, "UTF-8");
-  // } catch (Exception e) {
-  // return s;
-  // }
-  // }
-
-  // public void initCache() {
-  // total_requests = 0;
-  // urltimes = new Hashtable();
-  // urlcounts = new Hashtable();
-  // urlsize = new Hashtable();
-  // }
-
 }
