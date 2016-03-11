@@ -42,6 +42,8 @@ public class Main implements Runnable {
 
   static int active_users = 0;
 
+  static boolean verbose = false;
+
   static long start;
   static long end_time;
   static int active_requests = 0;
@@ -169,6 +171,10 @@ public class Main implements Runnable {
         if (args[i].equals("-s")) {
           isSingleUrl = true;
         }
+
+        if (args[i].equals("-v")) {
+          verbose = true;
+        }
       }
 
     }
@@ -228,16 +234,26 @@ public class Main implements Runnable {
     }
     avg /= total_requests;
 
+    int lastDistribution = 0;
+
     for (int i = 0; i < distribution.length; i++) {
       if (distribution[i] > 0) {
         long newreq = req + distribution[i];
         if (i > avg) {
-          System.out.println("^^^ average");
+          if (!verbose) {
+            System.out.println("Average: " + lastDistribution);
+          } else {
+            System.out.println("^^^ average");
+          }
           avg = distribution.length;
         }
         for (;;) {
           if (newreq * 100 > percentile * total_requests) {
-            System.out.println("^^^ " + percentile + "% precentile");
+            if (!verbose) {
+              System.out.println(percentile + "% percentile: " + lastDistribution);
+            } else {
+              System.out.println("^^^ " + percentile + "% precentile");
+            }
             switch (percentile) {
             case 90:
               percentile = 95;
@@ -254,7 +270,10 @@ public class Main implements Runnable {
           }
           break;
         }
-        System.out.println(i + " " + distribution[i]);
+        lastDistribution = i;
+        if (verbose) {
+          System.out.println(i + " " + distribution[i]);
+        }
         req = newreq;
       }
     }
@@ -283,6 +302,7 @@ public class Main implements Runnable {
     System.out.println(" -p pass   The password, that will be used for basic authentication.");
     System.out.println(
         " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning.");
+    System.out.println(" -v        Verbose output.");
     System.out.println("");
     System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
     System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
@@ -305,8 +325,7 @@ public class Main implements Runnable {
     System.out.println(
         " 25 users request the site http://www.novomind.com/hiddenarea/ and https://www.google.com/ for 3 minutes with a 0 second delay (creates a lot of requests!). For all (both) sites the user 'fritz' and password 'geheim' is used as authentication.");
     System.out.println("");
-    System.out.println(
-        "webtest 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
+    System.out.println("webtest 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
     System.out.println(
         " 1 user requests for one minute with a request delay of 10 seconds the site www.shop.com over and over. The second url is requested only once (-s) and has additional POST information.");
   }
@@ -601,8 +620,10 @@ public class Main implements Runnable {
   }
 
   private void message(String s) {
-    System.out.println("users " + active_users + " active " + active_requests + " time " + nanoString(System.nanoTime() - start)
-        + (userId != -1 ? (" user " + userId + ": ") : " ") + ": " + s);
+    if (verbose) {
+      System.out.println("users " + active_users + " active " + active_requests + " time " + nanoString(System.nanoTime() - start)
+          + (userId != -1 ? (" user " + userId + ": ") : " ") + ": " + s);
+    }
   }
 
   private static String nanoString(long l) {
