@@ -51,6 +51,7 @@ public class Main implements Runnable {
   static long delta_requests = 0;
 
   static String[] SessionID;
+  static String[] CsrfTokens;
   static Hashtable urltimes = new Hashtable();
   static Hashtable urlcounts = new Hashtable();
   static Hashtable urlsize = new Hashtable();
@@ -195,6 +196,7 @@ public class Main implements Runnable {
     Main m[] = new Main[users + 1];
     Thread t[] = new Thread[users + 1];
     SessionID = new String[users + 1];
+    CsrfTokens = new String[users + 1];
     for (int i = 0; i < m.length; i++)
       m[i] = new Main(i - 1);
     start = System.nanoTime();
@@ -247,7 +249,7 @@ public class Main implements Runnable {
           }
           avg = distribution.length;
         }
-        for (;;) {
+        for (; ; ) {
           if (newreq * 100 > percentile * total_requests) {
             if (!verbose) {
               System.out.println(percentile + "% percentile: " + lastDistribution);
@@ -490,6 +492,7 @@ public class Main implements Runnable {
         postData = url.substring(postIdx + 4);
         url = url.substring(0, postIdx);
       }
+
       URL u = new URL(url);
       HttpURLConnection hc = (HttpURLConnection) u.openConnection();
       if (url.startsWith("https")) {
@@ -517,6 +520,7 @@ public class Main implements Runnable {
         hc.setRequestMethod("POST");
         hc.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         hc.setRequestProperty("Content-Length", "" + Integer.toString(postData.getBytes().length));
+        hc.setRequestProperty("X-Csrf-Token", CsrfTokens[user_id]);
         hc.setDoOutput(true);
         DataOutputStream wr = new DataOutputStream(hc.getOutputStream());
         wr.writeBytes(postData);
@@ -536,7 +540,7 @@ public class Main implements Runnable {
               extra = extra + "\npost data " + postData;
             message(extra + "\n" + url + " -> " + response);
           }
-        for (int i = 1;; i++) {
+        for (int i = 1; ; i++) {
           String val = hc.getHeaderField(i);
           if (val == null)
             break;
@@ -559,6 +563,26 @@ public class Main implements Runnable {
           String location = hc.getHeaderField("Location");
           if (!nexturl.equals(location))
             message("OUT OF SYNC (302 redirect mismatch): expected " + nexturl + ", got " + location);
+        }
+        if (CsrfTokens[user_id] == null) {
+          try {
+            BufferedReader buff = new BufferedReader(new InputStreamReader(hc.getInputStream()));
+            String line;
+            String csrf;
+            while ((line = buff.readLine()) != null) {
+              int index = line.indexOf("type=\"hidden\" name=\"_csrf\" value=\"");
+              if (index != -1) {
+                String t = line.split("type=\"hidden\" name=\"_csrf\" value=\"")[1];
+                csrf = t.split("\"")[0];
+                CsrfTokens[user_id] = csrf;
+                message("Found CSRF-Token for User[" + user_id + "]: " + csrf);
+                break;
+              }
+            }
+          } catch (IOException e) {
+            message("Could not find CSRF-Token for User[" + user_id
+                + "] - POST Requests will not work if CSRF-Protection is enabled");
+          }
         }
       }
       InputStream is = hc.getInputStream();
