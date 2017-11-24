@@ -36,6 +36,7 @@ public class Main implements Runnable {
   static String username;
   static String password;
 
+  static String csrfUrl;
   static ArrayList<String> urls = new ArrayList<String>();
   static Set<String> singleUseUrls = new HashSet<String>();
   static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<Integer, Map<String, Boolean>>();
@@ -51,6 +52,7 @@ public class Main implements Runnable {
   static long delta_requests = 0;
 
   static String[] SessionID;
+  static String[] CsrfTokens;
   static Hashtable urltimes = new Hashtable();
   static Hashtable urlcounts = new Hashtable();
   static Hashtable urlsize = new Hashtable();
@@ -119,6 +121,7 @@ public class Main implements Runnable {
     boolean isPassword = false;
     boolean isSingleUrl = false;
     boolean isUrlFile = false;
+    boolean isCsrf = false;
 
     if (args.length < 4) {
       printHelp();
@@ -138,6 +141,11 @@ public class Main implements Runnable {
           if (isSingleUrl) {
             singleUseUrls.add(args[i]);
             isSingleUrl = false;
+          }
+          else if(isCsrf){
+            singleUseUrls.add(args[i]);
+            csrfUrl = args[i];
+            isCsrf = false;
           }
         }
       } else {
@@ -175,6 +183,10 @@ public class Main implements Runnable {
         if (args[i].equals("-v")) {
           verbose = true;
         }
+
+        if (args[i].equals("--csrf")) {
+          isCsrf = true;
+        }
       }
 
     }
@@ -195,6 +207,7 @@ public class Main implements Runnable {
     Main m[] = new Main[users + 1];
     Thread t[] = new Thread[users + 1];
     SessionID = new String[users + 1];
+    CsrfTokens = new String[users + 1];
     for (int i = 0; i < m.length; i++)
       m[i] = new Main(i - 1);
     start = System.nanoTime();
@@ -247,7 +260,7 @@ public class Main implements Runnable {
           }
           avg = distribution.length;
         }
-        for (;;) {
+        for (; ; ) {
           if (newreq * 100 > percentile * total_requests) {
             if (!verbose) {
               System.out.println(percentile + "% percentile: " + lastDistribution);
@@ -306,9 +319,11 @@ public class Main implements Runnable {
     System.out.println("");
     System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
     System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
+    System.out.println(" -csrf     This URL will be requested only once per user to retrieve the CSRF token that the page at this url holds.");
     System.out.println(" URL       URLs are expected in the general http://site/file.html?page=123 way.");
     System.out.println("           Also https is supported, even though the certificate is not validated!");
     System.out.println(" POST      Add POST at the end of the URL and all data after POST will be posted.");
+
     System.out.println("");
     System.out.println("Output:");
     System.out.println(
@@ -457,6 +472,7 @@ public class Main implements Runnable {
   private long requestUrl(String url, int user_id, boolean newSession, String nexturl) {
     Map<String, Boolean> urlAlreadyUsedMap = urlForUserAlreadyUsed.get(user_id);
 
+    boolean isCsrfUrl = csrfUrl != null && csrfUrl.equals(url);
     if (singleUseUrls.contains(url)) {
       if (urlAlreadyUsedMap == null) {
         urlAlreadyUsedMap = new HashMap<String, Boolean>();
@@ -490,6 +506,7 @@ public class Main implements Runnable {
         postData = url.substring(postIdx + 4);
         url = url.substring(0, postIdx);
       }
+
       URL u = new URL(url);
       HttpURLConnection hc = (HttpURLConnection) u.openConnection();
       if (url.startsWith("https")) {
@@ -517,6 +534,7 @@ public class Main implements Runnable {
         hc.setRequestMethod("POST");
         hc.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         hc.setRequestProperty("Content-Length", "" + Integer.toString(postData.getBytes().length));
+        hc.setRequestProperty("X-Csrf-Token", CsrfTokens[user_id]);
         hc.setDoOutput(true);
         DataOutputStream wr = new DataOutputStream(hc.getOutputStream());
         wr.writeBytes(postData);
@@ -536,7 +554,7 @@ public class Main implements Runnable {
               extra = extra + "\npost data " + postData;
             message(extra + "\n" + url + " -> " + response);
           }
-        for (int i = 1;; i++) {
+        for (int i = 1; ; i++) {
           String val = hc.getHeaderField(i);
           if (val == null)
             break;
@@ -559,6 +577,33 @@ public class Main implements Runnable {
           String location = hc.getHeaderField("Location");
           if (!nexturl.equals(location))
             message("OUT OF SYNC (302 redirect mismatch): expected " + nexturl + ", got " + location);
+        }
+        if (isCsrfUrl && CsrfTokens[user_id] == null) {
+          try {
+            BufferedReader buff = new BufferedReader(new InputStreamReader(hc.getInputStream()));
+            String line;
+            String csrf;
+            while ((line = buff.readLine()) != null) {
+              String csrfText = "name=\"_csrf\" value=\"";
+              int index = line.indexOf(csrfText);
+
+              if (index == -1) {
+                csrfText = "name=\"_csrf\" content=\"";
+                index = line.indexOf(csrfText);
+              }
+
+              if (index != -1) {
+                String t = line.split(csrfText)[1];
+                csrf = t.split("\"")[0];
+                CsrfTokens[user_id] = csrf;
+                message("Found CSRF-Token for User[" + user_id + "]: " + csrf);
+                break;
+              }
+            }
+          } catch (IOException e) {
+            message("Could not find CSRF-Token for User[" + user_id
+                + "] - POST Requests will not work if CSRF-Protection is enabled");
+          }
         }
       }
       InputStream is = hc.getInputStream();
