@@ -28,9 +28,12 @@ import javax.net.ssl.X509TrustManager;
 
 import sun.misc.BASE64Encoder;
 
+/**
+ * novomind Web Test. A load test tool designed to test java based web applications.
+ */
 public class Main implements Runnable {
   static int users = 300;
-  static int runtime_minutes = 1;
+  static int runtimeMinutes = 1;
   static double avgWait = 0;
 
   static String username;
@@ -41,15 +44,15 @@ public class Main implements Runnable {
   static Set<String> singleUseUrls = new HashSet<String>();
   static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<Integer, Map<String, Boolean>>();
 
-  static int active_users = 0;
+  static int activeUsers = 0;
 
   static boolean verbose = false;
 
   static long start;
-  static long end_time;
-  static int active_requests = 0;
-  static long total_requests = 0;
-  static long delta_requests = 0;
+  static long endTime;
+  static int activeRequests = 0;
+  static long totalRequests = 0;
+  static long deltaRequests = 0;
 
   static String[] SessionID;
   static String[] CsrfTokens;
@@ -59,17 +62,16 @@ public class Main implements Runnable {
 
   static int[] distribution = new int[100000];
 
-  static long last_msg = System.nanoTime();
-  static long first_msg = last_msg;
-  static long last_len;
-  static long total_len = 0;
-  static int error_count = 0;
+  static long lastMsg = System.nanoTime();
+  static long lastLen;
+  static long totalLen = 0;
+  static int errorCount = 0;
   static final int MAX_ERRORS = 100;
 
   static Object o = new Object();
 
   static boolean rampstart = true;
-  static double ramp_delay;
+  static double rampDelay;
 
   static HostnameVerifier hostnameVerifier;
   static TrustManager[] trustAllCerts;
@@ -79,20 +81,23 @@ public class Main implements Runnable {
   /** Request timeout in milliseconds */
   static final int REQUEST_TIMEOUT = 30000;
 
+  /** Java session cookie only **/
+  static final String SESSIONID_COOKIE = "JSESSIONID=";
+
   // For each Runnable
   int userId;
-  long start_time;
+  long startTime;
 
-  ///////////////////////
-  /// Constructor
-  ///////////////////////
+
   public Main(int user_id) {
     this.userId = user_id;
   }
 
-  ///////////////////////
-  /// MAIN
-  ///////////////////////
+  /**
+   * Main method
+   * @param args
+   * @throws Exception
+   */
   public static void main(String[] args) throws Exception {
     hostnameVerifier = new HostnameVerifier() {
 
@@ -116,7 +121,6 @@ public class Main implements Runnable {
     sslSocketFactory = sslContext.getSocketFactory();
     HttpURLConnection.setFollowRedirects(false);
     System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
-    // System.setProperty("http.keepAlive", "false");
     boolean isUsername = false;
     boolean isPassword = false;
     boolean isSingleUrl = false;
@@ -133,7 +137,7 @@ public class Main implements Runnable {
         if (0 == i)
           users = Integer.parseInt(args[i]);
         if (1 == i)
-          runtime_minutes = Integer.parseInt(args[i]);
+          runtimeMinutes = Integer.parseInt(args[i]);
         if (2 == i)
           avgWait = Double.parseDouble(args[i]);
         if (2 < i) {
@@ -193,11 +197,10 @@ public class Main implements Runnable {
 
     System.setProperty("http.maxConnections", "" + users);
 
-    ramp_delay = runtime_minutes * 60000.0 / users / 2;
+    rampDelay = runtimeMinutes * 60000.0 / users / 2;
     rampstart = users >= 100;
-    // qrampstart = true;
     System.out.println("USERS " + users);
-    System.out.println("RUNTIME_MINUTES " + runtime_minutes);
+    System.out.println("RUNTIME_MINUTES " + runtimeMinutes);
     System.out.println("AVG_WAIT " + avgWait);
     System.out.println("estimated clicks/s " + users / avgWait);
     if (username != null && password != null) {
@@ -213,12 +216,11 @@ public class Main implements Runnable {
     start = System.nanoTime();
     for (int i = 0; i < m.length; i++)
       t[i] = new Thread(m[i]);
-    // m[0].initCache ();
     start = System.nanoTime();
-    long duration = 60 * runtime_minutes;
+    long duration = 60 * runtimeMinutes;
     duration *= 1000000000;
-    end_time = System.nanoTime() + duration;
-    last_msg = 0;
+    endTime = System.nanoTime() + duration;
+    lastMsg = 0;
     for (int i = 0; i < m.length; i++)
       t[i].start();
     m[0].message(users + " threads started");
@@ -235,7 +237,7 @@ public class Main implements Runnable {
           + x((tt.longValue() / tc.longValue())) + " bytes " + x(sz.longValue()) + " avg " + x(sz.longValue() / tc.longValue()));
     }
 
-    System.out.println("avg requests per second " + (total_requests * 1000000000 / (System.nanoTime() - start)));
+    System.out.println("avg requests per second " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
 
     long req = 0;
     int percentile = 90;
@@ -245,7 +247,7 @@ public class Main implements Runnable {
         avg += i * distribution[i];
       }
     }
-    avg /= total_requests;
+    avg /= totalRequests;
 
     int lastDistribution = 0;
 
@@ -261,7 +263,7 @@ public class Main implements Runnable {
           avg = distribution.length;
         }
         for (; ; ) {
-          if (newreq * 100 > percentile * total_requests) {
+          if (newreq * 100 > percentile * totalRequests) {
             if (!verbose) {
               System.out.println(percentile + "% percentile: " + lastDistribution);
             } else {
@@ -295,6 +297,9 @@ public class Main implements Runnable {
     System.exit(0);
   }
 
+  /**
+   * Shows command line help.
+   */
   public static void printHelp() {
     System.out.println("This is the novomind webtest tool");
     System.out
@@ -395,67 +400,70 @@ public class Main implements Runnable {
     return ret;
   }
 
-  ///////////////////////
-  /// RUN for Runnable
-  ///////////////////////
+  /**
+   * Run for runnable.
+   */
   public void run() {
     int step = 0;
     long now;
-    while ((now = System.nanoTime()) <= end_time) {
+    while ((now = System.nanoTime()) <= endTime) {
       if (userId == -1) {
         long t2 = now - start;
         if (step > 0)
           synchronized (o) {
-            double delta = (t2 - last_msg);
+            double delta = (t2 - lastMsg);
             delta = delta * 0.000000128;
             double delta2 = t2;
             delta2 = delta2 * 0.000000128;
-            double delta3 = (t2 - last_msg);
+            double delta3 = (t2 - lastMsg);
             delta3 = delta3 * 0.000000001;
 
-            message("Requests: " + total_requests + " requests/s " + Math.round((total_requests - delta_requests) / delta3)
-                + " KBit: " + Math.round((total_len - last_len) / delta) + " KBit avg:" + Math.round((total_len) / delta2)
-                + " req/s avg " + total_requests * 1e9 / t2);
+            message("Requests: " + totalRequests + " requests/s " + Math.round((totalRequests - deltaRequests) / delta3)
+                + " KBit: " + Math.round((totalLen - lastLen) / delta) + " KBit avg:" + Math.round((totalLen) / delta2)
+                + " req/s avg " + totalRequests * 1e9 / t2);
 
-            delta_requests = total_requests;
-            last_len = total_len;
-            last_msg = t2;
+            deltaRequests = totalRequests;
+            lastLen = totalLen;
+            lastMsg = t2;
           }
         t2 = ++step;
         t2 *= 1000000000;
         t2 += start;
         t2 -= System.nanoTime();
-        realsleep(t2 / 1000000);
+        realSleep(t2 / 1000000);
       } else {
-        do_step(userId, step++);
-        if (error_count >= MAX_ERRORS)
+        doStep(userId, step++);
+        if (errorCount >= MAX_ERRORS) {
           break;
+        }
       }
     }
   }
 
-  private void do_step(int user_id, int step) {
-    do_step(user_id, step, true);
+  private void doStep(int user_id, int step) {
+    doStep(user_id, step, true);
   }
 
-  private void do_step(int user_id, int step, boolean wait) {
+  private void doStep(int user_id, int step, boolean wait) {
     if (rampstart && step == 0) {
-      realsleep(Math.round(user_id * ramp_delay));
+      realSleep(Math.round(user_id * rampDelay));
       synchronized (o) {
-        active_users++;
+        activeUsers++;
       }
     }
-    if (wait)
+    if (wait) {
       sleep(user_id, step);
-    if (System.nanoTime() > end_time)
+    }
+    if (System.nanoTime() > endTime) {
       return;
+    }
     String url = "";
     url = urls.get(step % urls.size());
 
-    if (!wait)
+    if (!wait) {
       message(url);
-    boolean newSession = (step % urls.size()) == 0;
-    newSession = false;
+    }
+    boolean newSession = false;
 
     String sid = SessionID[user_id];
     if (sid == null)
@@ -495,11 +503,10 @@ public class Main implements Runnable {
     long requestStart = System.nanoTime();
     long len = 0;
     long time = 0;
-    long t2;
     int response = -1;
 
     synchronized (o) {
-      active_requests++;
+      activeRequests++;
     }
     try {
       int postIdx = url.indexOf("POST");
@@ -520,8 +527,6 @@ public class Main implements Runnable {
       hc.setReadTimeout(REQUEST_TIMEOUT);
 
       if (SessionID[user_id] != null && !newSession) {
-        // message ("using session id " + SessionID [user_id]);
-
         hc.addRequestProperty("Cookie", SessionID[user_id]);
       } else {
         message("create new session");
@@ -561,8 +566,7 @@ public class Main implements Runnable {
           String val = hc.getHeaderField(i);
           if (val == null)
             break;
-          // message ("header field #" + i + " >>>" + val + "<<<");
-          if (val.startsWith("JSESSIONID=")) {
+          if (val.startsWith(SESSIONID_COOKIE)) {
             String session = val.substring(0, val.indexOf(";"));
             if (!session.equals(SessionID[user_id])) {
               SessionID[user_id] = val.substring(0, val.indexOf(";"));
@@ -610,7 +614,6 @@ public class Main implements Runnable {
         }
       }
       InputStream is = hc.getInputStream();
-      // GZIPInputStream zis = new GZIPInputStream (is);
       boolean first = true;
       while (true) {
         int j = is.read(buffer);
@@ -622,15 +625,14 @@ public class Main implements Runnable {
         String s = new String(buffer, 0, j);
 
         synchronized (o) {
-          total_len += j;
+          totalLen += j;
         }
       }
       is.close();
-      // hc.disconnect ();
     } catch (Exception e) {
       message(e.toString() + " for " + url);
       synchronized (o) {
-        error_count++;
+        errorCount++;
       }
     }
     if (time == 0)
@@ -641,7 +643,7 @@ public class Main implements Runnable {
       if (idx >= distribution.length - 1)
         idx = distribution.length - 1;
       distribution[idx]++;
-      active_requests--;
+      activeRequests--;
 
       Long l = (Long) urltimes.get(url);
       if (l == null)
@@ -655,7 +657,7 @@ public class Main implements Runnable {
       if (l == null)
         l = new Long(0);
       urlsize.put(url, new Long(l.longValue() + len));
-      total_requests++;
+      totalRequests++;
 
     }
     buffer = null;
@@ -669,7 +671,7 @@ public class Main implements Runnable {
 
   private void message(String s) {
     if (verbose) {
-      System.out.println("users " + active_users + " active " + active_requests + " time " + nanoString(System.nanoTime() - start)
+      System.out.println("users " + activeUsers + " active " + activeRequests + " time " + nanoString(System.nanoTime() - start)
           + (userId != -1 ? (" user " + userId + ": ") : " ") + ": " + s);
     }
   }
@@ -685,8 +687,8 @@ public class Main implements Runnable {
     if (avgWait > 0) {
       long now = System.nanoTime();
       if (step == 0)
-        start_time = now;
-      long max_end = Math.round(start_time + (step + 2) * avgWait * 1000000000);
+        startTime = now;
+      long max_end = Math.round(startTime + (step + 2) * avgWait * 1000000000);
       long waittime;
       if (max_end < now) {
         // message ("out of sync, server overloaded");
@@ -694,16 +696,16 @@ public class Main implements Runnable {
       } else {
         waittime = Math.round((max_end - now) * 0.000001 * Math.random());
       }
-      long resttime = (end_time - now) / 1000000;
+      long resttime = (endTime - now) / 1000000;
       if (resttime < 0)
         resttime = 0;
       if (resttime < waittime)
         waittime = resttime + 1;
-      realsleep(waittime);
+      realSleep(waittime);
     }
   }
 
-  private void realsleep(long waittime) {
+  private void realSleep(long waittime) {
     if (waittime > 0)
       try {
         Thread.sleep(waittime);
