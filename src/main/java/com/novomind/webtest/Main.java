@@ -21,7 +21,6 @@ import java.util.Set;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -40,9 +39,9 @@ public class Main implements Runnable {
   static String password;
 
   static String csrfUrl;
-  static ArrayList<String> urls = new ArrayList<String>();
-  static Set<String> singleUseUrls = new HashSet<String>();
-  static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<Integer, Map<String, Boolean>>();
+  static ArrayList<String> urls = new ArrayList<>();
+  static Set<String> singleUseUrls = new HashSet<>();
+  static Map<Integer, Map<String, Boolean>> urlForUserAlreadyUsed = new HashMap<>();
 
   static int activeUsers = 0;
 
@@ -88,7 +87,6 @@ public class Main implements Runnable {
   int userId;
   long startTime;
 
-
   public Main(int userId) {
     this.userId = userId;
   }
@@ -99,12 +97,7 @@ public class Main implements Runnable {
    * @throws Exception
    */
   public static void main(String[] args) throws Exception {
-    hostnameVerifier = new HostnameVerifier() {
-
-      public boolean verify(String hostname, SSLSession session) {
-        return true;
-      }
-    };
+    hostnameVerifier = (hostname, session) -> true;
     trustAllCerts = new TrustManager[] { new X509TrustManager() {
       public void checkClientTrusted(final X509Certificate[] chain, final String authType) {
       }
@@ -145,8 +138,7 @@ public class Main implements Runnable {
           if (isSingleUrl) {
             singleUseUrls.add(args[i]);
             isSingleUrl = false;
-          }
-          else if(isCsrf){
+          } else if (isCsrf) {
             singleUseUrls.add(args[i]);
             csrfUrl = args[i];
             isCsrf = false;
@@ -307,7 +299,7 @@ public class Main implements Runnable {
     System.out.println("When all request are finished/have answered, a small statistic is presented.");
     System.out.println("");
     System.out.println("Usage:");
-    System.out.println(" webtest users runtime delay [OPTION...] URL...");
+    System.out.println(" java -jar webtest.jar users runtime delay [OPTION...] URL...");
     System.out.println("");
     System.out.println(" users     The number of users/clients that simultaneously request the URLs.");
     System.out.println(" runtime   The duration of this test in minutes.");
@@ -324,7 +316,8 @@ public class Main implements Runnable {
     System.out.println("");
     System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
     System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
-    System.out.println(" --csrf     This URL will be requested only once per user to retrieve the CSRF token that the page at this url holds.");
+    System.out.println(
+        " --csrf     This URL will be requested only once per user to retrieve the CSRF token that the page at this url holds.");
     System.out.println(" URL       URLs are expected in the general http://site/file.html?page=123 way.");
     System.out.println("           Also https is supported, even though the certificate is not validated!");
     System.out.println(" POST      Add POST at the end of the URL and all data after POST will be posted.");
@@ -337,18 +330,18 @@ public class Main implements Runnable {
     System.out.println("");
     System.out.println("");
     System.out.println("Examples:");
-    System.out.println("webtest 5 1 1 http://www.novomind.com/");
+    System.out.println("java -jar webtest.jar 5 1 1 http://www.novomind.com/");
     System.out.println(
         " Five users request the site http://www.novomind.com/ for 1 minute with a 1 second delay between each request.");
     System.out.println("");
-    System.out.println("webtest 25 3 0 http://www.novomind.com/hiddenarea/ https://www.google.com/ -u fritz -p geheim");
+    System.out.println("java -jar webtest.jar 25 3 0 http://www.novomind.com/hiddenarea/ https://www.google.com/ -u fritz -p geheim");
     System.out.println(
         " 25 users request the site http://www.novomind.com/hiddenarea/ and https://www.google.com/ for 3 minutes with a 0 second delay (creates a lot of requests!). For all (both) sites the user 'fritz' and password 'geheim' is used as authentication.");
     System.out.println("");
-    System.out.println("webtest 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
+    System.out.println("java -jar webtest.jar 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
     System.out.println(
         " 1 user requests for one minute with a request delay of 10 seconds the site www.shop.com over and over. The second url is requested only once (-s) and has additional POST information.");
-    System.out.println("webtest 1 1 10 https://www.shop.com/add/product/POSTitemId=dummyId --csrf https://www.shop.com/home");
+    System.out.println("java -jar webtest.jar 1 1 10 https://www.shop.com/add/product/POSTitemId=dummyId --csrf https://www.shop.com/home");
     System.out.println(
         " 1 user requests for one minute with a request delay of 10 seconds and sends POST requests to the url https://www.shop.com/add/product/ over and over. The second url is requested only once to retrieve the csrf token for each user (--csrf).");
   }
@@ -357,7 +350,7 @@ public class Main implements Runnable {
     FileInputStream fis = new FileInputStream(filepath);
     BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
 
-    Collection<String> urls = new ArrayList<String>();
+    Collection<String> urls = new ArrayList<>();
 
     try {
       String line = reader.readLine();
@@ -486,7 +479,7 @@ public class Main implements Runnable {
     boolean isCsrfUrl = csrfUrl != null && csrfUrl.equals(url);
     if (singleUseUrls.contains(url)) {
       if (urlAlreadyUsedMap == null) {
-        urlAlreadyUsedMap = new HashMap<String, Boolean>();
+        urlAlreadyUsedMap = new HashMap<>();
         urlForUserAlreadyUsed.put(user_id, urlAlreadyUsedMap);
       } else {
         Boolean used = urlAlreadyUsedMap.get(url);
@@ -531,7 +524,7 @@ public class Main implements Runnable {
       } else {
         message("create new session");
       }
-      hc.addRequestProperty("User-Agent", "novomind webtest");
+      hc.addRequestProperty("User-Agent", "novomind/webtest");
       hc.addRequestProperty("Accept-Encoding", "gzip");
 
       if (username != null && password != null) {
