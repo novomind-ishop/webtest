@@ -1,5 +1,7 @@
 package com.novomind.webtest;
 
+import java.awt.AWTEvent;
+import java.awt.event.WindowEvent;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.FileInputStream;
@@ -16,6 +18,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,11 +28,17 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import javax.swing.JFrame;
 
 /**
  * novomind Web Test. A load test tool designed to test java based web applications.
  */
 public class Main implements Runnable {
+
+  private static GraphGui gui;
+  protected static List<Long> througput = new ArrayList<>();
+  protected static List<Double> avgThrougput = new ArrayList<>();
+  protected static Long maxThrougput = 0L;
   static int users = 300;
   static int runtimeMinutes = 1;
   static double avgWait = 0;
@@ -81,7 +90,7 @@ public class Main implements Runnable {
 
   /** Java session cookie only **/
   static final String SESSIONID_COOKIE = "JSESSIONID=";
-
+  static boolean showGui = false;
   // For each Runnable
   int userId;
   long startTime;
@@ -176,6 +185,9 @@ public class Main implements Runnable {
 
         if (args[i].equals("--csrf")) {
           isCsrf = true;
+        }
+        if (args[i].equals("--gui")) {
+          showGui = true;
         }
       }
 
@@ -304,6 +316,7 @@ public class Main implements Runnable {
     System.out.println("Options:");
     System.out.println(" -u user   The username, that will be used for basic authentication.");
     System.out.println(" -p pass   The password, that will be used for basic authentication.");
+    System.out.println(" --gui     Show graphic output.");
     System.out.println(
         " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning.");
     System.out.println(" -v        Verbose output.");
@@ -328,14 +341,17 @@ public class Main implements Runnable {
     System.out.println(
         " Five users request the site http://www.novomind.com/ for 1 minute with a 1 second delay between each request.");
     System.out.println("");
-    System.out.println("java -jar webtest.jar 25 3 0 http://www.novomind.com/hiddenarea/ https://www.google.com/ -u fritz -p geheim");
+    System.out.println(
+        "java -jar webtest.jar 25 3 0 http://www.novomind.com/hiddenarea/ https://www.google.com/ -u fritz -p geheim");
     System.out.println(
         " 25 users request the site http://www.novomind.com/hiddenarea/ and https://www.google.com/ for 3 minutes with a 0 second delay (creates a lot of requests!). For all (both) sites the user 'fritz' and password 'geheim' is used as authentication.");
     System.out.println("");
-    System.out.println("java -jar webtest.jar 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
+    System.out.println(
+        "java -jar webtest.jar 1 1 10 http://www.shop.com/ -s https://www.shop.com/add/product/POSTitemId=dummyId");
     System.out.println(
         " 1 user requests for one minute with a request delay of 10 seconds the site www.shop.com over and over. The second url is requested only once (-s) and has additional POST information.");
-    System.out.println("java -jar webtest.jar 1 1 10 https://www.shop.com/add/product/POSTitemId=dummyId --csrf https://www.shop.com/home");
+    System.out.println(
+        "java -jar webtest.jar 1 1 10 https://www.shop.com/add/product/POSTitemId=dummyId --csrf https://www.shop.com/home");
     System.out.println(
         " 1 user requests for one minute with a request delay of 10 seconds and sends POST requests to the url https://www.shop.com/add/product/ over and over. The second url is requested only once to retrieve the csrf token for each user (--csrf).");
   }
@@ -387,10 +403,10 @@ public class Main implements Runnable {
     return ret;
   }
 
-  /**
-   * Run for runnable.
-   */
   public void run() {
+    if (showGui) {
+      startGui();
+    }
     int step = 0;
     long now;
     while ((now = System.nanoTime()) <= endTime) {
@@ -404,7 +420,16 @@ public class Main implements Runnable {
             delta2 = delta2 * 0.000000128;
             double delta3 = (t2 - lastMsg);
             delta3 = delta3 * 0.000000001;
-
+            long thru = Math.round((totalRequests - deltaRequests) / delta3);
+            double avgThru = totalRequests * 1e9 / t2;
+            if (gui != null) {
+              if (thru > maxThrougput) {
+                maxThrougput = thru;
+              }
+              througput.add(thru);
+              avgThrougput.add(avgThru);
+              gui.repaint();
+            }
             message("Requests: " + totalRequests + " requests/s " + Math.round((totalRequests - deltaRequests) / delta3)
                 + " KBit: " + Math.round((totalLen - lastLen) / delta) + " KBit avg:" + Math.round((totalLen) / delta2)
                 + " req/s avg " + totalRequests * 1e9 / t2);
@@ -424,6 +449,30 @@ public class Main implements Runnable {
           break;
         }
       }
+    }
+  }
+
+  private synchronized void startGui() {
+    if (userId == -1) {
+      gui = new GraphGui(this);
+      JFrame f = new JFrame() {
+        protected void processWindowEvent(WindowEvent e) {
+          super.processWindowEvent(e);
+          if (e.getID() == WindowEvent.WINDOW_CLOSING) {
+            System.exit(0);
+          }
+        }
+
+        synchronized public void setTitle(String title) {
+          super.setTitle(title);
+          enableEvents(AWTEvent.WINDOW_EVENT_MASK);
+        }
+      };
+
+      f.add(gui);
+      f.setTitle("novomind webtest");
+      f.setSize(968, 533);
+      f.setVisible(true);
     }
   }
 
