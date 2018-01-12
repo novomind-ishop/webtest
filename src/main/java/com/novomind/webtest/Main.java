@@ -53,8 +53,8 @@ public class Main implements Runnable {
   static long totalRequests = 0;
   static long deltaRequests = 0;
 
-  static String[] SessionID;
-  static String[] CsrfTokens;
+  static String[] sessionIDs;
+  static String[] csrfTokens;
   static Hashtable urltimes = new Hashtable();
   static Hashtable urlcounts = new Hashtable();
   static Hashtable urlsize = new Hashtable();
@@ -67,7 +67,7 @@ public class Main implements Runnable {
   static int errorCount = 0;
   static final int MAX_ERRORS = 100;
 
-  static Object o = new Object();
+  static Object lock = new Object();
 
   static boolean rampstart = true;
   static double rampDelay;
@@ -91,11 +91,6 @@ public class Main implements Runnable {
     this.userId = userId;
   }
 
-  /**
-   * Main method
-   * @param args
-   * @throws Exception
-   */
   public static void main(String[] args) throws Exception {
     hostnameVerifier = (hostname, session) -> true;
     trustAllCerts = new TrustManager[] { new X509TrustManager() {
@@ -106,7 +101,7 @@ public class Main implements Runnable {
       }
 
       public X509Certificate[] getAcceptedIssuers() {
-        return null;
+        return new X509Certificate[0];
       }
     } };
     sslContext = SSLContext.getInstance("SSL");
@@ -199,17 +194,17 @@ public class Main implements Runnable {
       System.out.println("using " + username + " to log in.");
     }
 
-    Main m[] = new Main[users + 1];
-    Thread t[] = new Thread[users + 1];
-    SessionID = new String[users + 1];
-    CsrfTokens = new String[users + 1];
+    Main[] m = new Main[users + 1];
+    Thread[] t = new Thread[users + 1];
+    sessionIDs = new String[users + 1];
+    csrfTokens = new String[users + 1];
     for (int i = 0; i < m.length; i++)
       m[i] = new Main(i - 1);
     start = System.nanoTime();
     for (int i = 0; i < m.length; i++)
       t[i] = new Thread(m[i]);
     start = System.nanoTime();
-    long duration = 60 * runtimeMinutes;
+    long duration = 60L * runtimeMinutes;
     duration *= 1000000000;
     endTime = System.nanoTime() + duration;
     lastMsg = 0;
@@ -225,8 +220,8 @@ public class Main implements Runnable {
       Long tt = (Long) urltimes.get(k);
       Long tc = (Long) urlcounts.get(k);
       Long sz = (Long) urlsize.get(k);
-      System.out.println("url " + k + " requested " + tc.longValue() + " times " + " total time " + x(tt.longValue()) + " avg "
-          + x((tt.longValue() / tc.longValue())) + " bytes " + x(sz.longValue()) + " avg " + x(sz.longValue() / tc.longValue()));
+      System.out.println("url " + k + " requested " + tc + " times " + " total time " + format(tt) + " avg "
+          + format((tt / tc)) + " bytes " + format(sz) + " avg " + format(sz / tc));
     }
 
     System.out.println("avg requests per second " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
@@ -292,7 +287,7 @@ public class Main implements Runnable {
   /**
    * Shows command line help.
    */
-  public static void printHelp() {
+  static void printHelp() {
     System.out.println("This is the novomind webtest tool");
     System.out
         .println("It benchmarks the performance of a webservice, by requesting URLs and measuring the time of each request.");
@@ -381,7 +376,7 @@ public class Main implements Runnable {
     return urls;
   }
 
-  private static String x(long l) {
+  static String format(long l) {
     String s = "" + l;
     String ret = "";
     int j = 0;
@@ -403,7 +398,7 @@ public class Main implements Runnable {
       if (userId == -1) {
         long t2 = now - start;
         if (step > 0)
-          synchronized (o) {
+          synchronized (lock) {
             double delta = (t2 - lastMsg);
             delta = delta * 0.000000128;
             double delta2 = t2;
@@ -440,7 +435,7 @@ public class Main implements Runnable {
   private void doStep(int user_id, int step, boolean wait) {
     if (rampstart && step == 0) {
       realSleep(Math.round(user_id * rampDelay));
-      synchronized (o) {
+      synchronized (lock) {
         activeUsers++;
       }
     }
@@ -458,7 +453,7 @@ public class Main implements Runnable {
     }
     boolean newSession = false;
 
-    String sid = SessionID[user_id];
+    String sid = sessionIDs[user_id];
     if (sid == null)
       sid = "";
     if (sid != null) {
@@ -498,7 +493,7 @@ public class Main implements Runnable {
     long time = 0;
     int response = -1;
 
-    synchronized (o) {
+    synchronized (lock) {
       activeRequests++;
     }
     try {
@@ -519,8 +514,8 @@ public class Main implements Runnable {
 
       hc.setReadTimeout(REQUEST_TIMEOUT);
 
-      if (SessionID[user_id] != null && !newSession) {
-        hc.addRequestProperty("Cookie", SessionID[user_id]);
+      if (sessionIDs[user_id] != null && !newSession) {
+        hc.addRequestProperty("Cookie", sessionIDs[user_id]);
       } else {
         message("create new session");
       }
@@ -535,7 +530,7 @@ public class Main implements Runnable {
         hc.setRequestMethod("POST");
         hc.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         hc.setRequestProperty("Content-Length", "" + Integer.toString(postData.getBytes().length));
-        hc.setRequestProperty("X-Csrf-Token", CsrfTokens[user_id]);
+        hc.setRequestProperty("X-Csrf-Token", csrfTokens[user_id]);
         hc.setDoOutput(true);
         DataOutputStream wr = new DataOutputStream(hc.getOutputStream());
         wr.writeBytes(postData);
@@ -549,8 +544,8 @@ public class Main implements Runnable {
         if (response != 200)
           if (response != 302) {
             String extra = "";
-            if (SessionID[user_id] != null)
-              extra = extra + "\nsession " + SessionID[user_id];
+            if (sessionIDs[user_id] != null)
+              extra = extra + "\nsession " + sessionIDs[user_id];
             if (!"".equals(postData))
               extra = extra + "\npost data " + postData;
             message(extra + "\n" + url + " -> " + response);
@@ -561,15 +556,15 @@ public class Main implements Runnable {
             break;
           if (val.startsWith(SESSIONID_COOKIE)) {
             String session = val.substring(0, val.indexOf(";"));
-            if (!session.equals(SessionID[user_id])) {
-              SessionID[user_id] = val.substring(0, val.indexOf(";"));
-              message("saved session id " + SessionID[user_id] + ", cookie was " + val);
+            if (!session.equals(sessionIDs[user_id])) {
+              sessionIDs[user_id] = val.substring(0, val.indexOf(";"));
+              message("saved session id " + sessionIDs[user_id] + ", cookie was " + val);
             }
             break;
           }
         }
         if (response == 302 && nexturl.length() != 0) {
-          String s = SessionID[user_id];
+          String s = sessionIDs[user_id];
           if (s != null) {
             s = s.substring(s.indexOf("=") + 1);
           }
@@ -578,7 +573,7 @@ public class Main implements Runnable {
           if (!nexturl.equals(location))
             message("OUT OF SYNC (302 redirect mismatch): expected " + nexturl + ", got " + location);
         }
-        if (isCsrfUrl && CsrfTokens[user_id] == null) {
+        if (isCsrfUrl && csrfTokens[user_id] == null) {
           try {
             BufferedReader buff = new BufferedReader(new InputStreamReader(hc.getInputStream()));
             String line;
@@ -595,7 +590,7 @@ public class Main implements Runnable {
               if (index != -1) {
                 String t = line.split(csrfText)[1];
                 csrf = t.split("\"")[0];
-                CsrfTokens[user_id] = csrf;
+                csrfTokens[user_id] = csrf;
                 message("Found CSRF-Token for User[" + user_id + "]: " + csrf);
                 break;
               }
@@ -617,20 +612,20 @@ public class Main implements Runnable {
         len += j;
         String s = new String(buffer, 0, j);
 
-        synchronized (o) {
+        synchronized (lock) {
           totalLen += j;
         }
       }
       is.close();
     } catch (Exception e) {
       message(e.toString() + " for " + url);
-      synchronized (o) {
+      synchronized (lock) {
         errorCount++;
       }
     }
     if (time == 0)
       time = System.nanoTime() - requestStart;
-    synchronized (o) {
+    synchronized (lock) {
       // if (time >= 1000000000) message ("url " + url + " time " + time);
       int idx = (int) Math.round(time / 1000000.0);
       if (idx >= distribution.length - 1)
@@ -641,15 +636,15 @@ public class Main implements Runnable {
       Long l = (Long) urltimes.get(url);
       if (l == null)
         l = new Long(0);
-      urltimes.put(url, new Long(l.longValue() + time));
+      urltimes.put(url, new Long(l + time));
       l = (Long) urlcounts.get(url);
       if (l == null)
         l = new Long(0);
-      urlcounts.put(url, new Long(l.longValue() + 1));
+      urlcounts.put(url, new Long(l + 1));
       l = (Long) urlsize.get(url);
       if (l == null)
         l = new Long(0);
-      urlsize.put(url, new Long(l.longValue() + len));
+      urlsize.put(url, new Long(l + len));
       totalRequests++;
 
     }
