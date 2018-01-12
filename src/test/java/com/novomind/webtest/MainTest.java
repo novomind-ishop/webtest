@@ -45,6 +45,12 @@ public class MainTest {
     assertEquals("2.463.345", Main.format(2463345L));
   }
 
+  @Test
+  public void testEncode() {
+    assertEquals("d3d3", Main.encode("www"));
+    assertEquals("YXNkZg==", Main.encode("asdf"));
+  }
+
   private List<String> outLines() {
     return lines(systemOutRule.getLogWithNormalizedLineSeparator());
   }

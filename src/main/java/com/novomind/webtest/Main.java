@@ -10,6 +10,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -24,8 +25,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-
-import sun.misc.BASE64Encoder;
 
 /**
  * novomind Web Test. A load test tool designed to test java based web applications.
@@ -652,9 +651,8 @@ public class Main implements Runnable {
     return time;
   }
 
-  private static String encode(String source) {
-    BASE64Encoder enc = new sun.misc.BASE64Encoder();
-    return (enc.encode(source.getBytes()));
+  static String encode(String source) {
+    return Base64.getEncoder().encodeToString(source.getBytes());
   }
 
   private void message(String s) {
