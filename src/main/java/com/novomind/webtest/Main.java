@@ -472,6 +472,7 @@ public class Main implements Runnable {
       f.add(gui);
       f.setTitle("novomind webtest");
       f.setSize(968, 533);
+      f.setLocation(50, 50);
       f.setVisible(true);
     }
   }

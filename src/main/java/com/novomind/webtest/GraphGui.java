@@ -10,13 +10,13 @@ public class GraphGui extends Canvas {
 
   private final Main main;
 
-  private static Font font = new Font("Courier", Font.BOLD, 20);
+  private static Font font = new Font("Courier", Font.BOLD, 18);
 
-  private static Color colorGrid = Color.GREEN;
-  private static Color colorStatsText = Color.BLACK;
-  private static Color colorBackground = Color.WHITE;
-  private static Color colorAvgThrougput = Color.BLUE;
-  private static Color colorThrougput = Color.RED;
+  private static Color colorGrid = new Color(0, 43, 54);
+  private static Color colorStatsText = new Color(147, 161, 161);
+  private static Color colorBackground = new Color(7, 54, 66);
+  private static Color colorAvgThrougput = new Color(38, 139, 210);
+  private static Color colorThrougput = new Color(220, 50, 47);
 
   public GraphGui(Main main) {
     this.main = main;
@@ -87,12 +87,14 @@ public class GraphGui extends Canvas {
     mbit = main.totalLen / mbit; // byte per ns
     mbit *= 1000000000.0; // byte per s
     mbit /= (128 * 1024); // mbit per s
-    g.drawString(String.format("avg. MBit/s %.2f", mbit), 10, d.height - 70);
-    g.drawString("total requests " + Main.totalRequests, 10, d.height - 50);
+    int x = 25;
+    int y = 15;
+    g.drawString(String.format("avg.  MBit/s %.2f", mbit), x, y + 40);
+    g.drawString("total requests " + Main.totalRequests, x, y + 20);
     if (end > 0) {
-      g.drawString(String.format("avg. requests/s %.2f", (sum / end)), 10, d.height - 30);
+      g.drawString(String.format("avg.  requests/s %.2f", (sum / end)), x, y + 60);
     }
-    g.drawString("max. requests/s " + main.maxThrougput, 10, d.height - 10);
+    g.drawString("max.  requests/s " + main.maxThrougput, x, y + 80);
   }
 
   private void drawGrid(Graphics g, Dimension d) {
