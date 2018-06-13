@@ -11,6 +11,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.cert.X509Certificate;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -19,8 +21,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -91,6 +95,7 @@ public class Main implements Runnable {
   /** Java session cookie only **/
   static final String SESSIONID_COOKIE = "JSESSIONID=";
   static boolean showGui = false;
+
   // For each Runnable
   int userId;
   long startTime;
@@ -197,10 +202,12 @@ public class Main implements Runnable {
 
     rampDelay = runtimeMinutes * 60000.0 / users / 2;
     rampstart = users >= 100;
-    System.out.println("USERS " + users);
-    System.out.println("RUNTIME_MINUTES " + runtimeMinutes);
-    System.out.println("AVG_WAIT " + avgWait);
-    System.out.println("estimated clicks/s " + users / avgWait);
+    System.out.println("users: " + users);
+    System.out.println("runtime in minutes: " + runtimeMinutes);
+    System.out.println("average waiting time in seconds: " + String.format("%,f",avgWait));
+    System.out.println("estimated clicks/s " + String.format("%,f",users / avgWait));
+    System.out.println("decimal mark: " + String.format("%,d",1000));
+    System.out.println("decimal separator: " + String.format("%,f",0.1));
     if (username != null && password != null) {
       System.out.println("using " + username + " to log in.");
     }
@@ -231,11 +238,11 @@ public class Main implements Runnable {
       Long tt = (Long) urltimes.get(k);
       Long tc = (Long) urlcounts.get(k);
       Long sz = (Long) urlsize.get(k);
-      System.out.println("url " + k + " requested " + tc + " times " + " total time " + format(tt) + " avg "
-          + format((tt / tc)) + " bytes " + format(sz) + " avg " + format(sz / tc));
+      System.out.println("url " + k + " requested " + tc + " times, " + "total time: " + nanoString(tt) + " s, avg time: "
+          + nanoString((tt / tc)) + " s, bytes: " + format(sz) + " avg bytes: " + format(sz / tc));
     }
 
-    System.out.println("avg requests per second " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
+    System.out.println("avg requests/s: " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
 
     long req = 0;
     int percentile = 90;
@@ -392,15 +399,7 @@ public class Main implements Runnable {
   }
 
   static String format(long l) {
-    String s = "" + l;
-    String ret = "";
-    int j = 0;
-    for (int i = s.length() - 1; i >= 0; i--) {
-      ret = s.charAt(i) + ret;
-      if ((++j % 3) == 0 && i > 0)
-        ret = "." + ret;
-    }
-    return ret;
+    return String.format("%,d", l);
   }
 
   public void run() {
@@ -430,9 +429,9 @@ public class Main implements Runnable {
               avgThrougput.add(avgThru);
               gui.repaint();
             }
-            message("Requests: " + totalRequests + " requests/s " + Math.round((totalRequests - deltaRequests) / delta3)
-                + " KBit: " + Math.round((totalLen - lastLen) / delta) + " KBit avg:" + Math.round((totalLen) / delta2)
-                + " req/s avg " + totalRequests * 1e9 / t2);
+            message("Requests: " + totalRequests + " requests/s: " + Math.round((totalRequests - deltaRequests) / delta3)
+                + " KBit: " + Math.round((totalLen - lastLen) / delta) + " KBit avg: " + Math.round((totalLen) / delta2)
+                + ", req/s avg: " + String.format("%,f",totalRequests * 1e9 / t2));
 
             deltaRequests = totalRequests;
             lastLen = totalLen;
@@ -707,16 +706,14 @@ public class Main implements Runnable {
 
   private void message(String s) {
     if (verbose) {
-      System.out.println("users " + activeUsers + " active " + activeRequests + " time " + nanoString(System.nanoTime() - start)
-          + (userId != -1 ? (" user " + userId + ": ") : " ") + ": " + s);
+      System.out.println("users: " + activeUsers + " active: " + activeRequests + " time: " + nanoString(System.nanoTime() - start)
+          + (userId != -1 ? (" user " + userId + ": ") : " ") + s);
     }
   }
 
   private static String nanoString(long l) {
-    String ret = ("" + l).trim();
-    while (ret.length() < 10)
-      ret = "0" + ret;
-    return ret.substring(0, ret.length() - 9) + "," + ret.substring(ret.length() - 9);
+    double elapsedTimeInSeconds = TimeUnit.MILLISECONDS.convert(l, TimeUnit.NANOSECONDS) / 1000.0;
+    return (String.format("%,f  ",elapsedTimeInSeconds));
   }
 
   private void sleep(int user_id, int step) {
