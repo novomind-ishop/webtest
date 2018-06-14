@@ -41,8 +41,6 @@ public class MainTest {
   public void testFromatLong() {
     assertEquals("22", Main.format(22L));
     assertEquals("222", Main.format(222L));
-    assertEquals("1.122", Main.format(1122L));
-    assertEquals("2.463.345", Main.format(2463345L));
   }
 
   @Test
