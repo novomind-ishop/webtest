@@ -339,7 +339,7 @@ public class Main implements Runnable {
     System.out.println("");
     System.out.println("Output:");
     System.out.println(
-        " The output are pairs of two numbers, where the first number is an answer time in milliseconds and the second number, who often this time was achieved.");
+        " The output are pairs of two numbers, where the first number is an answer time in milliseconds and the second number, how often this time was achieved.");
     System.out.println(" In between are certain separating lines, like ---percentile---, for simple statistic reasons.");
     System.out.println("");
     System.out.println("");
