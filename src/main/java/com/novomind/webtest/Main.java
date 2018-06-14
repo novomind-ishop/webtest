@@ -202,15 +202,17 @@ public class Main implements Runnable {
 
     rampDelay = runtimeMinutes * 60000.0 / users / 2;
     rampstart = users >= 100;
-    System.out.println("users: " + users);
-    System.out.println("runtime in minutes: " + runtimeMinutes);
-    System.out.println("average waiting time in seconds: " + String.format("%,f",avgWait));
-    System.out.println("estimated clicks/s " + String.format("%,f",users / avgWait));
-    System.out.println("decimal mark: " + String.format("%,d",1000));
-    System.out.println("decimal separator: " + String.format("%,f",0.1));
+    System.out.println("Version: "+getVersion());
+    System.out.println("Simulated users: " + users);
+    System.out.println("Runtime in minutes: " + runtimeMinutes);
+    System.out.println("Average waiting time in seconds: " + String.format("%,f",avgWait));
+    System.out.println("Estimated clicks/s " + String.format("%,f",users / avgWait));
+    System.out.println("Decimal mark: " + String.format("%,d",1000));
+    System.out.println("Decimal separator: " + String.format("%,f",0.1));
     if (username != null && password != null) {
-      System.out.println("using " + username + " to log in.");
+      System.out.println("Using " + username + " to log in.");
     }
+    System.out.println();
 
     Main[] m = new Main[users + 1];
     Thread[] t = new Thread[users + 1];
@@ -239,7 +241,7 @@ public class Main implements Runnable {
       Long tc = (Long) urlcounts.get(k);
       Long sz = (Long) urlsize.get(k);
       System.out.println("url " + k + " requested " + tc + " times, " + "total time: " + nanoString(tt) + " s, avg time: "
-          + nanoString((tt / tc)) + " s, bytes: " + format(sz) + " avg bytes: " + format(sz / tc));
+          + nanoString((tt / tc)) + " s, bytes: " + format(sz) + ", avg bytes: " + format(sz / tc));
     }
 
     System.out.println("avg requests/s: " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
@@ -302,11 +304,21 @@ public class Main implements Runnable {
     System.exit(0);
   }
 
+  static public String getVersion() {
+    String version = Main.class.getPackage().getImplementationVersion();
+    if (version==null) {
+      version = "DEBUG";
+    }
+    return version;
+  }
+
   /**
    * Shows command line help.
    */
   static void printHelp() {
     System.out.println("This is the novomind webtest tool");
+    System.out.println("Version "+getVersion());
+    System.out.println();
     System.out
         .println("It benchmarks the performance of a webservice, by requesting URLs and measuring the time of each request.");
     System.out.println("When all request are finished/have answered, a small statistic is presented.");
@@ -429,8 +441,8 @@ public class Main implements Runnable {
               avgThrougput.add(avgThru);
               gui.repaint();
             }
-            message("Requests: " + totalRequests + " requests/s: " + Math.round((totalRequests - deltaRequests) / delta3)
-                + " KBit: " + Math.round((totalLen - lastLen) / delta) + " KBit avg: " + Math.round((totalLen) / delta2)
+            message("Requests: " + totalRequests + ", requests/s: " + Math.round((totalRequests - deltaRequests) / delta3)
+                + ", KBit: " + Math.round((totalLen - lastLen) / delta) + ", KBit avg: " + Math.round((totalLen) / delta2)
                 + ", req/s avg: " + String.format("%,f",totalRequests * 1e9 / t2));
 
             deltaRequests = totalRequests;
