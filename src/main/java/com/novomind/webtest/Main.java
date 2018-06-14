@@ -241,7 +241,7 @@ public class Main implements Runnable {
       Long tc = (Long) urlcounts.get(k);
       Long sz = (Long) urlsize.get(k);
       System.out.println("url " + k + " requested " + tc + " times, " + "total time: " + nanoString(tt) + " s, avg time: "
-          + nanoString((tt / tc)) + " s, bytes: " + format(sz) + " avg bytes: " + format(sz / tc));
+          + nanoString((tt / tc)) + " s, bytes: " + format(sz) + ", avg bytes: " + format(sz / tc));
     }
 
     System.out.println("avg requests/s: " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
@@ -257,6 +257,9 @@ public class Main implements Runnable {
     avg /= totalRequests;
 
     int lastDistribution = 0;
+
+    System.out.println();
+    System.out.println("[ms]  [number of requests]");
 
     for (int i = 0; i < distribution.length; i++) {
       if (distribution[i] > 0) {
