@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.novomind.ishop.webtest</groupId>
   <artifactId>webtest</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.2</version>
   <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
@@ -72,6 +72,7 @@
           <archive>
             <manifest>
               <mainClass>com.novomind.webtest.Main</mainClass>
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
             </manifest>
           </archive>
         </configuration>

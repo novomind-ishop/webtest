@@ -11,6 +11,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.cert.X509Certificate;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -19,8 +21,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -63,6 +67,7 @@ public class Main implements Runnable {
 
   static String[] sessionIDs;
   static String[] csrfTokens;
+  static String[] customSessionIDs;
   static Hashtable urltimes = new Hashtable();
   static Hashtable urlcounts = new Hashtable();
   static Hashtable urlsize = new Hashtable();
@@ -90,7 +95,10 @@ public class Main implements Runnable {
 
   /** Java session cookie only **/
   static final String SESSIONID_COOKIE = "JSESSIONID=";
+  static String customSessionIDCookie = "HASTICKY";
   static boolean showGui = false;
+  static boolean useCustomSessionCookie  = false;
+
   // For each Runnable
   int userId;
   long startTime;
@@ -122,6 +130,7 @@ public class Main implements Runnable {
     boolean isSingleUrl = false;
     boolean isUrlFile = false;
     boolean isCsrf = false;
+    boolean isCustomCookie = false;
 
     if (args.length < 4) {
       printHelp();
@@ -129,7 +138,7 @@ public class Main implements Runnable {
     }
 
     for (int i = 0; i < args.length; i++) {
-      if (!args[i].startsWith("-") && !isPassword && !isUsername && !isUrlFile) {
+      if (!args[i].startsWith("-") && !isPassword && !isUsername && !isUrlFile  && !isCustomCookie) {
         if (0 == i)
           users = Integer.parseInt(args[i]);
         if (1 == i)
@@ -163,6 +172,11 @@ public class Main implements Runnable {
           isUrlFile = false;
         }
 
+        if (isCustomCookie) {
+          customSessionIDCookie = args[i];
+          isCustomCookie = false;
+        }
+
         if (args[i].equals("-u")) {
           isUsername = true;
         }
@@ -183,6 +197,11 @@ public class Main implements Runnable {
           verbose = true;
         }
 
+        if (args[i].equals("-c")) {
+          useCustomSessionCookie = true;
+          isCustomCookie = true;
+        }
+
         if (args[i].equals("--csrf")) {
           isCsrf = true;
         }
@@ -197,17 +216,22 @@ public class Main implements Runnable {
 
     rampDelay = runtimeMinutes * 60000.0 / users / 2;
     rampstart = users >= 100;
-    System.out.println("USERS " + users);
-    System.out.println("RUNTIME_MINUTES " + runtimeMinutes);
-    System.out.println("AVG_WAIT " + avgWait);
-    System.out.println("estimated clicks/s " + users / avgWait);
+    System.out.println("Version: "+getVersion());
+    System.out.println("Simulated users: " + users);
+    System.out.println("Runtime in minutes: " + runtimeMinutes);
+    System.out.println("Average waiting time in seconds: " + String.format("%,f",avgWait));
+    System.out.println("Estimated clicks/s " + String.format("%,f",users / avgWait));
+    System.out.println("Decimal mark: " + String.format("%,d",1000));
+    System.out.println("Decimal separator: " + String.format("%,f",0.1));
     if (username != null && password != null) {
-      System.out.println("using " + username + " to log in.");
+      System.out.println("Using " + username + " to log in.");
     }
+    System.out.println();
 
     Main[] m = new Main[users + 1];
     Thread[] t = new Thread[users + 1];
     sessionIDs = new String[users + 1];
+    customSessionIDs = new String[users + 1];
     csrfTokens = new String[users + 1];
     for (int i = 0; i < m.length; i++)
       m[i] = new Main(i - 1);
@@ -231,11 +255,11 @@ public class Main implements Runnable {
       Long tt = (Long) urltimes.get(k);
       Long tc = (Long) urlcounts.get(k);
       Long sz = (Long) urlsize.get(k);
-      System.out.println("url " + k + " requested " + tc + " times " + " total time " + format(tt) + " avg "
-          + format((tt / tc)) + " bytes " + format(sz) + " avg " + format(sz / tc));
+      System.out.println("url " + k + " requested " + tc + " times, " + "total time: " + nanoString(tt) + " s, avg time: "
+          + nanoString((tt / tc)) + " s, bytes: " + format(sz) + ", avg bytes: " + format(sz / tc));
     }
 
-    System.out.println("avg requests per second " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
+    System.out.println("avg requests/s: " + (totalRequests * 1000000000 / (System.nanoTime() - start)));
 
     long req = 0;
     int percentile = 90;
@@ -248,6 +272,9 @@ public class Main implements Runnable {
     avg /= totalRequests;
 
     int lastDistribution = 0;
+
+    System.out.println();
+    System.out.println("[ms]  [number of requests]");
 
     for (int i = 0; i < distribution.length; i++) {
       if (distribution[i] > 0) {
@@ -295,11 +322,21 @@ public class Main implements Runnable {
     System.exit(0);
   }
 
+  static public String getVersion() {
+    String version = Main.class.getPackage().getImplementationVersion();
+    if (version==null) {
+      version = "DEBUG";
+    }
+    return version;
+  }
+
   /**
    * Shows command line help.
    */
   static void printHelp() {
     System.out.println("This is the novomind webtest tool");
+    System.out.println("Version "+getVersion());
+    System.out.println();
     System.out
         .println("It benchmarks the performance of a webservice, by requesting URLs and measuring the time of each request.");
     System.out.println("When all request are finished/have answered, a small statistic is presented.");
@@ -319,6 +356,9 @@ public class Main implements Runnable {
     System.out.println(" --gui     Show graphic output.");
     System.out.println(
         " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning.");
+    System.out.println("");
+    System.out.println(" -c cookie Use another SessionID Cookie, additionally or instead of JSESSIONID.");
+    System.out.println("");
     System.out.println(" -v        Verbose output.");
     System.out.println("");
     System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
@@ -332,7 +372,7 @@ public class Main implements Runnable {
     System.out.println("");
     System.out.println("Output:");
     System.out.println(
-        " The output are pairs of two numbers, where the first number is an answer time in milliseconds and the second number, who often this time was achieved.");
+        " The output are pairs of two numbers, where the first number is an answer time in milliseconds and the second number, how often this time was achieved.");
     System.out.println(" In between are certain separating lines, like ---percentile---, for simple statistic reasons.");
     System.out.println("");
     System.out.println("");
@@ -392,15 +432,7 @@ public class Main implements Runnable {
   }
 
   static String format(long l) {
-    String s = "" + l;
-    String ret = "";
-    int j = 0;
-    for (int i = s.length() - 1; i >= 0; i--) {
-      ret = s.charAt(i) + ret;
-      if ((++j % 3) == 0 && i > 0)
-        ret = "." + ret;
-    }
-    return ret;
+    return String.format("%,d", l);
   }
 
   public void run() {
@@ -430,9 +462,9 @@ public class Main implements Runnable {
               avgThrougput.add(avgThru);
               gui.repaint();
             }
-            message("Requests: " + totalRequests + " requests/s " + Math.round((totalRequests - deltaRequests) / delta3)
-                + " KBit: " + Math.round((totalLen - lastLen) / delta) + " KBit avg:" + Math.round((totalLen) / delta2)
-                + " req/s avg " + totalRequests * 1e9 / t2);
+            message("Requests: " + totalRequests + ", requests/s: " + Math.round((totalRequests - deltaRequests) / delta3)
+                + ", KBit: " + Math.round((totalLen - lastLen) / delta) + ", KBit avg: " + Math.round((totalLen) / delta2)
+                + ", req/s avg: " + String.format("%,f",totalRequests * 1e9 / t2));
 
             deltaRequests = totalRequests;
             lastLen = totalLen;
@@ -565,9 +597,14 @@ public class Main implements Runnable {
 
       if (sessionIDs[user_id] != null && !newSession) {
         hc.addRequestProperty("Cookie", sessionIDs[user_id]);
-      } else {
+      } else if (!useCustomSessionCookie){
         message("create new session");
       }
+
+      if (customSessionIDs[user_id] != null) {
+        hc.addRequestProperty("Cookie", customSessionIDs[user_id]);
+      }
+
       hc.addRequestProperty("User-Agent", "novomind/webtest");
       hc.addRequestProperty("Accept-Encoding", "gzip");
 
@@ -595,6 +632,8 @@ public class Main implements Runnable {
             String extra = "";
             if (sessionIDs[user_id] != null)
               extra = extra + "\nsession " + sessionIDs[user_id];
+            if (customSessionIDs[user_id] != null)
+              extra = extra + "\ncustom session " + customSessionIDs[user_id];
             if (!"".equals(postData))
               extra = extra + "\npost data " + postData;
             message(extra + "\n" + url + " -> " + response);
@@ -609,7 +648,12 @@ public class Main implements Runnable {
               sessionIDs[user_id] = val.substring(0, val.indexOf(";"));
               message("saved session id " + sessionIDs[user_id] + ", cookie was " + val);
             }
-            break;
+          } else if (val.startsWith(customSessionIDCookie)) {
+            String session = val.substring(0, val.indexOf(";"));
+            if (!session.equals(customSessionIDs[user_id])) {
+              customSessionIDs[user_id] = val.substring(0, val.indexOf(";"));
+              message("saved custom session id " + customSessionIDs[user_id] + ", cookie was " + val);
+            }
           }
         }
         if (response == 302 && nexturl.length() != 0) {
@@ -707,16 +751,14 @@ public class Main implements Runnable {
 
   private void message(String s) {
     if (verbose) {
-      System.out.println("users " + activeUsers + " active " + activeRequests + " time " + nanoString(System.nanoTime() - start)
-          + (userId != -1 ? (" user " + userId + ": ") : " ") + ": " + s);
+      System.out.println("users: " + activeUsers + " active: " + activeRequests + " time: " + nanoString(System.nanoTime() - start)
+          + (userId != -1 ? (" user " + userId + ": ") : " ") + s);
     }
   }
 
   private static String nanoString(long l) {
-    String ret = ("" + l).trim();
-    while (ret.length() < 10)
-      ret = "0" + ret;
-    return ret.substring(0, ret.length() - 9) + "," + ret.substring(ret.length() - 9);
+    double elapsedTimeInSeconds = TimeUnit.MILLISECONDS.convert(l, TimeUnit.NANOSECONDS) / 1000.0;
+    return (String.format("%,f  ",elapsedTimeInSeconds));
   }
 
   private void sleep(int user_id, int step) {
