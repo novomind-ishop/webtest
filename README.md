@@ -2,6 +2,7 @@
 A load test tool designed to test java based web applications.
 [![Build Status](https://travis-ci.org/novomind-ishop/webtest.svg?branch=master)](https://travis-ci.org/novomind-ishop/webtest)
 
+
 ![Screenshot](screenshot.png)
 ### Build / Usage
 ```
@@ -27,6 +28,7 @@ Options:
  -p pass   The password, that will be used for basic authentication.
  --gui     Show graphic output.
  -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning.
+ -c cookie Use another SessionID Cookie, additionally or instead of JSESSIONID.
  -v        Verbose output.
 
 URLs: [-s] URL[POST[POST-BODY]]
