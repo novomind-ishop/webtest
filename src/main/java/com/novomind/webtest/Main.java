@@ -11,8 +11,6 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.cert.X509Certificate;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -21,10 +19,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -668,9 +666,16 @@ public class Main implements Runnable {
         }
         if (isCsrfUrl && csrfTokens[user_id] == null) {
           try {
-            BufferedReader buff = new BufferedReader(new InputStreamReader(hc.getInputStream()));
+            BufferedReader buff;
+            if (hc.getContentEncoding().equals("gzip")) {
+              buff = new BufferedReader(new InputStreamReader(new GZIPInputStream(hc.getInputStream())));
+            } else {
+              buff = new BufferedReader(new InputStreamReader(hc.getInputStream()));
+            }
+
             String line;
             String csrf;
+            boolean foundCsrf = false;
             while ((line = buff.readLine()) != null) {
               String csrfText = "name=\"_csrf\" value=\"";
               int index = line.indexOf(csrfText);
@@ -685,11 +690,17 @@ public class Main implements Runnable {
                 csrf = t.split("\"")[0];
                 csrfTokens[user_id] = csrf;
                 message("Found CSRF-Token for User[" + user_id + "]: " + csrf);
+                foundCsrf = true;
                 break;
               }
             }
+
+            if (!foundCsrf) {
+              message("Could not find CSRF-Token for User[" + user_id
+                  + "] - POST Requests will not work if CSRF-Protection is enabled");
+            }
           } catch (IOException e) {
-            message("Could not find CSRF-Token for User[" + user_id
+            message("IOException: Could not find CSRF-Token for User[" + user_id
                 + "] - POST Requests will not work if CSRF-Protection is enabled");
           }
         }
