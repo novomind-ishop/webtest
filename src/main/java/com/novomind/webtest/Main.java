@@ -56,6 +56,7 @@ public class Main implements Runnable {
   static int activeUsers = 0;
 
   static boolean verbose = false;
+  static boolean showRequestedUrls = false;
 
   static long start;
   static long endTime;
@@ -96,10 +97,13 @@ public class Main implements Runnable {
   static String customSessionIDCookie = "HASTICKY";
   static boolean showGui = false;
   static boolean useCustomSessionCookie  = false;
+  static boolean useSingleSession = false;
 
   // For each Runnable
   int userId;
   long startTime;
+  boolean assignNewSession;
+
 
   public Main(int userId) {
     this.userId = userId;
@@ -129,6 +133,8 @@ public class Main implements Runnable {
     boolean isUrlFile = false;
     boolean isCsrf = false;
     boolean isCustomCookie = false;
+    boolean isSingleSession = false;
+    boolean isShowUrls = false;
 
     if (args.length < 4) {
       printHelp();
@@ -149,7 +155,6 @@ public class Main implements Runnable {
             singleUseUrls.add(args[i]);
             isSingleUrl = false;
           } else if (isCsrf) {
-            singleUseUrls.add(args[i]);
             csrfUrl = args[i];
             isCsrf = false;
           }
@@ -206,6 +211,14 @@ public class Main implements Runnable {
         if (args[i].equals("--gui")) {
           showGui = true;
         }
+        if (args[i].equals("--singleSession")){
+          isSingleSession = true;
+          useSingleSession = true;
+        }
+        if (args[i].equals("--showUrls")){
+          isShowUrls = true;
+          showRequestedUrls = true;
+        }
       }
 
     }
@@ -213,7 +226,7 @@ public class Main implements Runnable {
     System.setProperty("http.maxConnections", "" + users);
 
     rampDelay = runtimeMinutes * 60000.0 / users / 2;
-    rampstart = users >= 100;
+    rampstart = users >= 1000;
     System.out.println("Version: "+getVersion());
     System.out.println("Simulated users: " + users);
     System.out.println("Runtime in minutes: " + runtimeMinutes);
@@ -221,6 +234,10 @@ public class Main implements Runnable {
     System.out.println("Estimated clicks/s " + String.format("%,f",users / avgWait));
     System.out.println("Decimal mark: " + String.format("%,d",1000));
     System.out.println("Decimal separator: " + String.format("%,f",0.1));
+    System.out.println("Single Session Mode: " + isSingleSession);
+    if(isShowUrls){
+      System.out.println("Printing all requested Urls");
+    }
     if (username != null && password != null) {
       System.out.println("Using " + username + " to log in.");
     }
@@ -361,6 +378,8 @@ public class Main implements Runnable {
     System.out.println("");
     System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
     System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
+    System.out.println(" --singleSession        The users' sessions will be kept alive throughout the whole run if possible");
+    System.out.println(" --showUrls        Every Url is printed out when requested");
     System.out.println(
         " --csrf     This URL will be requested only once per user to retrieve the CSRF token that the page at this url holds.");
     System.out.println(" URL       URLs are expected in the general http://site/file.html?page=123 way.");
@@ -530,7 +549,11 @@ public class Main implements Runnable {
     if (!wait) {
       message(url);
     }
-    boolean newSession = false;
+
+    if(!assignNewSession){
+      //when this is true, the session has not been assigned yet
+      assignNewSession = step == 0  || (!useSingleSession && step % urls.size() == 0);
+    }
 
     String sid = sessionIDs[user_id];
     if (sid == null)
@@ -544,13 +567,17 @@ public class Main implements Runnable {
     if (idx != 0) {
       nexturl = urls.get(idx);
     }
-    requestUrl(url, user_id, newSession, nexturl);
+    requestUrl(url, user_id, nexturl);
   }
 
-  private long requestUrl(String url, int user_id, boolean newSession, String nexturl) {
+  private long requestUrl(String url, int user_id, String nexturl) {
     Map<String, Boolean> urlAlreadyUsedMap = urlForUserAlreadyUsed.get(user_id);
 
     boolean isCsrfUrl = csrfUrl != null && csrfUrl.equals(url);
+    if(isCsrfUrl && useSingleSession && csrfTokens[user_id] != null){
+      // CSRF Token already aquired
+      return 0;
+    }
     if (singleUseUrls.contains(url)) {
       if (urlAlreadyUsedMap == null) {
         urlAlreadyUsedMap = new HashMap<>();
@@ -562,7 +589,6 @@ public class Main implements Runnable {
         }
       }
       urlAlreadyUsedMap.put(url, true);
-
     }
 
     url = url.replaceAll("USER", String.format("%04d", new Object[] { Integer.valueOf(user_id + 1) }));
@@ -585,6 +611,10 @@ public class Main implements Runnable {
       }
 
       URL u = new URL(url);
+      if(showRequestedUrls){
+        message("Requesting Url: " + url);
+      }
+
       HttpURLConnection hc = (HttpURLConnection) u.openConnection();
       if (url.startsWith("https")) {
         ((HttpsURLConnection) hc).setHostnameVerifier(hostnameVerifier);
@@ -593,10 +623,11 @@ public class Main implements Runnable {
 
       hc.setReadTimeout(REQUEST_TIMEOUT);
 
-      if (sessionIDs[user_id] != null && !newSession) {
+      if (sessionIDs[user_id] != null && !assignNewSession) {
         hc.addRequestProperty("Cookie", sessionIDs[user_id]);
       } else if (!useCustomSessionCookie){
         message("create new session");
+        assignNewSession = false;
       }
 
       if (customSessionIDs[user_id] != null) {
@@ -664,7 +695,7 @@ public class Main implements Runnable {
           if (!nexturl.equals(location))
             message("OUT OF SYNC (302 redirect mismatch): expected " + nexturl + ", got " + location);
         }
-        if (isCsrfUrl && csrfTokens[user_id] == null) {
+        if (isCsrfUrl && (!useSingleSession || csrfTokens[user_id] == null)) {
           try {
             BufferedReader buff;
             if (hc.getContentEncoding().equals("gzip")) {
