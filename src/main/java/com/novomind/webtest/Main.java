@@ -96,14 +96,13 @@ public class Main implements Runnable {
   static final String SESSIONID_COOKIE = "JSESSIONID=";
   static String customSessionIDCookie = "HASTICKY";
   static boolean showGui = false;
-  static boolean useCustomSessionCookie  = false;
+  static boolean useCustomSessionCookie = false;
   static boolean useSingleSession = false;
 
   // For each Runnable
   int userId;
   long startTime;
   boolean assignNewSession;
-
 
   public Main(int userId) {
     this.userId = userId;
@@ -142,7 +141,7 @@ public class Main implements Runnable {
     }
 
     for (int i = 0; i < args.length; i++) {
-      if (!args[i].startsWith("-") && !isPassword && !isUsername && !isUrlFile  && !isCustomCookie) {
+      if (!args[i].startsWith("-") && !isPassword && !isUsername && !isUrlFile && !isCustomCookie) {
         if (0 == i)
           users = Integer.parseInt(args[i]);
         if (1 == i)
@@ -211,11 +210,11 @@ public class Main implements Runnable {
         if (args[i].equals("--gui")) {
           showGui = true;
         }
-        if (args[i].equals("--singleSession")){
+        if (args[i].equals("--singleSession")) {
           isSingleSession = true;
           useSingleSession = true;
         }
-        if (args[i].equals("--showUrls")){
+        if (args[i].equals("--showUrls")) {
           isShowUrls = true;
           showRequestedUrls = true;
         }
@@ -227,15 +226,15 @@ public class Main implements Runnable {
 
     rampDelay = runtimeMinutes * 60000.0 / users / 2;
     rampstart = users >= 1000;
-    System.out.println("Version: "+getVersion());
+    System.out.println("Version: " + getVersion());
     System.out.println("Simulated users: " + users);
     System.out.println("Runtime in minutes: " + runtimeMinutes);
-    System.out.println("Average waiting time in seconds: " + String.format("%,f",avgWait));
-    System.out.println("Estimated clicks/s " + String.format("%,f",users / avgWait));
-    System.out.println("Decimal mark: " + String.format("%,d",1000));
-    System.out.println("Decimal separator: " + String.format("%,f",0.1));
+    System.out.println("Average waiting time in seconds: " + String.format("%,f", avgWait));
+    System.out.println("Estimated clicks/s " + String.format("%,f", users / avgWait));
+    System.out.println("Decimal mark: " + String.format("%,d", 1000));
+    System.out.println("Decimal separator: " + String.format("%,f", 0.1));
     System.out.println("Single Session Mode: " + isSingleSession);
-    if(isShowUrls){
+    if (isShowUrls) {
       System.out.println("Printing all requested Urls");
     }
     if (username != null && password != null) {
@@ -339,7 +338,7 @@ public class Main implements Runnable {
 
   static public String getVersion() {
     String version = Main.class.getPackage().getImplementationVersion();
-    if (version==null) {
+    if (version == null) {
       version = "DEBUG";
     }
     return version;
@@ -350,7 +349,7 @@ public class Main implements Runnable {
    */
   static void printHelp() {
     System.out.println("This is the novomind webtest tool");
-    System.out.println("Version "+getVersion());
+    System.out.println("Version " + getVersion());
     System.out.println();
     System.out
         .println("It benchmarks the performance of a webservice, by requesting URLs and measuring the time of each request.");
@@ -370,7 +369,7 @@ public class Main implements Runnable {
     System.out.println(" -p pass   The password, that will be used for basic authentication.");
     System.out.println(" --gui     Show graphic output.");
     System.out.println(
-        " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning.");
+        " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning. You can add comment lines with # or //");
     System.out.println("");
     System.out.println(" -c cookie Use another SessionID Cookie, additionally or instead of JSESSIONID.");
     System.out.println("");
@@ -420,12 +419,18 @@ public class Main implements Runnable {
     Collection<String> urls = new ArrayList<>();
 
     try {
-      String line = reader.readLine();
-      while (line != null) {
+      String line;
+
+      while ((line = reader.readLine()) != null) {
+        if (isComment(line)) {
+          continue;
+        }
+
         String[] lineParts = line.split(" ");
 
         // The last part is always the url
         String url = lineParts[lineParts.length - 1];
+        System.out.println("Added URL from file: " + url);
         urls.add(url);
 
         if (2 <= lineParts.length) {
@@ -434,8 +439,6 @@ public class Main implements Runnable {
             singleUseUrls.add(url);
           }
         }
-
-        line = reader.readLine();
       }
 
     } catch (IOException ex) {
@@ -446,6 +449,10 @@ public class Main implements Runnable {
     }
 
     return urls;
+  }
+
+  static boolean isComment(String line) {
+    return line.startsWith("#") || line.startsWith("//");
   }
 
   static String format(long l) {
@@ -481,7 +488,7 @@ public class Main implements Runnable {
             }
             message("Requests: " + totalRequests + ", requests/s: " + Math.round((totalRequests - deltaRequests) / delta3)
                 + ", KBit: " + Math.round((totalLen - lastLen) / delta) + ", KBit avg: " + Math.round((totalLen) / delta2)
-                + ", req/s avg: " + String.format("%,f",totalRequests * 1e9 / t2));
+                + ", req/s avg: " + String.format("%,f", totalRequests * 1e9 / t2));
 
             deltaRequests = totalRequests;
             lastLen = totalLen;
@@ -550,9 +557,9 @@ public class Main implements Runnable {
       message(url);
     }
 
-    if(!assignNewSession){
+    if (!assignNewSession) {
       //when this is true, the session has not been assigned yet
-      assignNewSession = step == 0  || (!useSingleSession && step % urls.size() == 0);
+      assignNewSession = step == 0 || (!useSingleSession && step % urls.size() == 0);
     }
 
     String sid = sessionIDs[user_id];
@@ -574,7 +581,7 @@ public class Main implements Runnable {
     Map<String, Boolean> urlAlreadyUsedMap = urlForUserAlreadyUsed.get(user_id);
 
     boolean isCsrfUrl = csrfUrl != null && csrfUrl.equals(url);
-    if(isCsrfUrl && useSingleSession && csrfTokens[user_id] != null){
+    if (isCsrfUrl && useSingleSession && csrfTokens[user_id] != null) {
       // CSRF Token already aquired
       return 0;
     }
@@ -611,7 +618,7 @@ public class Main implements Runnable {
       }
 
       URL u = new URL(url);
-      if(showRequestedUrls){
+      if (showRequestedUrls) {
         message("Requesting Url: " + url);
       }
 
@@ -625,7 +632,7 @@ public class Main implements Runnable {
 
       if (sessionIDs[user_id] != null && !assignNewSession) {
         hc.addRequestProperty("Cookie", sessionIDs[user_id]);
-      } else if (!useCustomSessionCookie){
+      } else if (!useCustomSessionCookie) {
         message("create new session");
         assignNewSession = false;
       }
@@ -761,7 +768,8 @@ public class Main implements Runnable {
     if (time == 0)
       time = System.nanoTime() - requestStart;
     synchronized (lock) {
-      // if (time >= 1000000000) message ("url " + url + " time " + time);
+      if (time >= 100000000)
+        message("url " + url + " time " + time);
       int idx = (int) Math.round(time / 1000000.0);
       if (idx >= distribution.length - 1)
         idx = distribution.length - 1;
@@ -793,14 +801,15 @@ public class Main implements Runnable {
 
   private void message(String s) {
     if (verbose) {
-      System.out.println("users: " + activeUsers + " active: " + activeRequests + " time: " + nanoString(System.nanoTime() - start)
-          + (userId != -1 ? (" user " + userId + ": ") : " ") + s);
+      System.out.println(
+          "users: " + activeUsers + " active: " + activeRequests + " time: " + nanoString(System.nanoTime() - start)
+              + (userId != -1 ? (" user " + userId + ": ") : " ") + s);
     }
   }
 
   private static String nanoString(long l) {
     double elapsedTimeInSeconds = TimeUnit.MILLISECONDS.convert(l, TimeUnit.NANOSECONDS) / 1000.0;
-    return (String.format("%,f  ",elapsedTimeInSeconds));
+    return (String.format("%,f  ", elapsedTimeInSeconds));
   }
 
   private void sleep(int user_id, int step) {
