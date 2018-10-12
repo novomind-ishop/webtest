@@ -111,12 +111,15 @@ public class Main implements Runnable {
   public static void main(String[] args) throws Exception {
     hostnameVerifier = (hostname, session) -> true;
     trustAllCerts = new TrustManager[] { new X509TrustManager() {
+      @Override
       public void checkClientTrusted(final X509Certificate[] chain, final String authType) {
       }
 
+      @Override
       public void checkServerTrusted(final X509Certificate[] chain, final String authType) {
       }
 
+      @Override
       public X509Certificate[] getAcceptedIssuers() {
         return new X509Certificate[0];
       }
@@ -301,7 +304,7 @@ public class Main implements Runnable {
           }
           avg = distribution.length;
         }
-        for (; ; ) {
+        for (;;) {
           if (newreq * 100 > percentile * totalRequests) {
             if (!verbose) {
               System.out.println(percentile + "% percentile: " + lastDistribution);
@@ -459,6 +462,7 @@ public class Main implements Runnable {
     return String.format("%,d", l);
   }
 
+  @Override
   public void run() {
     if (showGui) {
       startGui();
@@ -512,6 +516,7 @@ public class Main implements Runnable {
     if (userId == -1) {
       gui = new GraphGui(this);
       JFrame f = new JFrame() {
+        @Override
         protected void processWindowEvent(WindowEvent e) {
           super.processWindowEvent(e);
           if (e.getID() == WindowEvent.WINDOW_CLOSING) {
@@ -519,6 +524,7 @@ public class Main implements Runnable {
           }
         }
 
+        @Override
         synchronized public void setTitle(String title) {
           super.setTitle(title);
           enableEvents(AWTEvent.WINDOW_EVENT_MASK);
@@ -558,7 +564,7 @@ public class Main implements Runnable {
     }
 
     if (!assignNewSession) {
-      //when this is true, the session has not been assigned yet
+      // when this is true, the session has not been assigned yet
       assignNewSession = step == 0 || (!useSingleSession && step % urls.size() == 0);
     }
 
@@ -630,15 +636,16 @@ public class Main implements Runnable {
 
       hc.setReadTimeout(REQUEST_TIMEOUT);
 
-      if (sessionIDs[user_id] != null && !assignNewSession) {
-        hc.addRequestProperty("Cookie", sessionIDs[user_id]);
-      } else if (!useCustomSessionCookie) {
+      if (!assignNewSession) {
+        if (sessionIDs[user_id] != null) {
+          hc.addRequestProperty("Cookie", sessionIDs[user_id]);
+        }
+        if (customSessionIDs[user_id] != null) {
+          hc.addRequestProperty("Cookie", customSessionIDs[user_id]);
+        }
+      } else {
         message("create new session");
         assignNewSession = false;
-      }
-
-      if (customSessionIDs[user_id] != null) {
-        hc.addRequestProperty("Cookie", customSessionIDs[user_id]);
       }
 
       hc.addRequestProperty("User-Agent", "novomind/webtest");
@@ -674,7 +681,7 @@ public class Main implements Runnable {
               extra = extra + "\npost data " + postData;
             message(extra + "\n" + url + " -> " + response);
           }
-        for (int i = 1; ; i++) {
+        for (int i = 1;; i++) {
           String val = hc.getHeaderField(i);
           if (val == null)
             break;
