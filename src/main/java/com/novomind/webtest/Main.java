@@ -147,8 +147,16 @@ public class Main implements Runnable {
       if (!args[i].startsWith("-") && !isPassword && !isUsername && !isUrlFile && !isCustomCookie) {
         if (0 == i)
           users = Integer.parseInt(args[i]);
+        if (users < 1) {
+          System.err.println("Users are set to " + users + ". This must be >= 1. Aborting");
+          System.exit(1);
+        }
         if (1 == i)
           runtimeMinutes = Integer.parseInt(args[i]);
+        if (runtimeMinutes <= 0) {
+          System.err.println("Runtime is set to " + runtimeMinutes + ". This must be > 0. Aborting");
+          System.exit(1);
+        }
         if (2 == i)
           avgWait = Double.parseDouble(args[i]);
         if (2 < i) {
@@ -223,6 +231,11 @@ public class Main implements Runnable {
         }
       }
 
+    }
+
+    if (urls.isEmpty()) {
+      System.err.println("No Urls to test were supplied. Aborting the test.");
+      System.exit(1);
     }
 
     System.setProperty("http.maxConnections", "" + users);
@@ -304,7 +317,7 @@ public class Main implements Runnable {
           }
           avg = distribution.length;
         }
-        for (;;) {
+        for (; ; ) {
           if (newreq * 100 > percentile * totalRequests) {
             if (!verbose) {
               System.out.println(percentile + "% percentile: " + lastDistribution);
@@ -681,7 +694,7 @@ public class Main implements Runnable {
               extra = extra + "\npost data " + postData;
             message(extra + "\n" + url + " -> " + response);
           }
-        for (int i = 1;; i++) {
+        for (int i = 1; ; i++) {
           String val = hc.getHeaderField(i);
           if (val == null)
             break;
@@ -750,24 +763,35 @@ public class Main implements Runnable {
           }
         }
       }
-      InputStream is = hc.getInputStream();
-      boolean first = true;
-      while (true) {
-        int j = is.read(buffer);
 
-        if (j < 0)
-          break;
+      try {
+        InputStream is = hc.getInputStream();
+        boolean first = true;
+        while (true) {
+          int j = is.read(buffer);
 
-        len += j;
-        String s = new String(buffer, 0, j);
+          if (j < 0)
+            break;
 
-        synchronized (lock) {
-          totalLen += j;
+          len += j;
+          String s = new String(buffer, 0, j);
+
+          synchronized (lock) {
+            totalLen += j;
+          }
+        }
+        is.close();
+      } catch (IOException e) {
+        if (e.getMessage().contains("429")) {
+          message("Request Denied: " + e.getMessage());
+        } else {
+          throw e;
         }
       }
-      is.close();
+
     } catch (Exception e) {
       message(e.toString() + " for " + url);
+      e.printStackTrace();
       synchronized (lock) {
         errorCount++;
       }
