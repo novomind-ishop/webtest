@@ -98,6 +98,7 @@ public class Main implements Runnable {
   static boolean showGui = false;
   static boolean useCustomSessionCookie = false;
   static boolean useSingleSession = false;
+  static boolean alternateUserAgentForUsers = false;
 
   // For each Runnable
   int userId;
@@ -137,6 +138,7 @@ public class Main implements Runnable {
     boolean isCustomCookie = false;
     boolean isSingleSession = false;
     boolean isShowUrls = false;
+    boolean isAlternateUserAgent = false;
 
     if (args.length < 4) {
       printHelp();
@@ -229,6 +231,10 @@ public class Main implements Runnable {
           isShowUrls = true;
           showRequestedUrls = true;
         }
+        if (args[i].equals("--alternateUserAgent")) {
+          isAlternateUserAgent = true;
+          alternateUserAgentForUsers = true;
+        }
       }
 
     }
@@ -250,6 +256,8 @@ public class Main implements Runnable {
     System.out.println("Decimal mark: " + String.format("%,d", 1000));
     System.out.println("Decimal separator: " + String.format("%,f", 0.1));
     System.out.println("Single Session Mode: " + isSingleSession);
+    System.out.println("alternate UserAgent Mode: " + isAlternateUserAgent);
+
     if (isShowUrls) {
       System.out.println("Printing all requested Urls");
     }
@@ -263,18 +271,21 @@ public class Main implements Runnable {
     sessionIDs = new String[users + 1];
     customSessionIDs = new String[users + 1];
     csrfTokens = new String[users + 1];
-    for (int i = 0; i < m.length; i++)
+    for (int i = 0; i < m.length; i++) {
       m[i] = new Main(i - 1);
+    }
     start = System.nanoTime();
-    for (int i = 0; i < m.length; i++)
+    for (int i = 0; i < m.length; i++) {
       t[i] = new Thread(m[i]);
+    }
     start = System.nanoTime();
     long duration = 60L * runtimeMinutes;
     duration *= 1000000000;
     endTime = System.nanoTime() + duration;
     lastMsg = 0;
-    for (int i = 0; i < m.length; i++)
+    for (int i = 0; i < m.length; i++) {
       t[i].start();
+    }
     m[0].message(users + " threads started");
     for (int i = 0; i < m.length; i++)
       t[i].join();
@@ -381,25 +392,26 @@ public class Main implements Runnable {
     System.out.println(" URL...    One or more URLs that should be requested. See URLs section.");
     System.out.println("");
     System.out.println("Options:");
-    System.out.println(" -u user   The username, that will be used for basic authentication.");
-    System.out.println(" -p pass   The password, that will be used for basic authentication.");
-    System.out.println(" --gui     Show graphic output.");
-    System.out.println(
-        " -f file   The file from which URLs get loaded. One url per line. -s option is allowed in each line beginning. You can add comment lines with # or //");
-    System.out.println("");
-    System.out.println(" -c cookie Use another SessionID Cookie, additionally or instead of JSESSIONID.");
-    System.out.println("");
-    System.out.println(" -v        Verbose output.");
-    System.out.println("");
-    System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
-    System.out.println(" -s        This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
+    System.out.println(" -v                     Verbose output.");
+    System.out.println(" -u user                The username, that will be used for basic authentication.");
+    System.out.println(" -p pass                The password, that will be used for basic authentication.");
+    System.out.println(" --gui                  Show graphic output.");
+    System.out.println(" -f file                The file from which URLs get loaded. One url per line. -s option is allowed in ");
+    System.out.println("                        each line beginning. You can add comment lines with # or //");
+    System.out.println(" -c                     cookie Use another SessionID Cookie, additionally or instead of JSESSIONID.");
+    System.out.println(" --alternateUserAgent   Every user uses a different UserAgent (\"novomind/webtest-{USER_ID}\")");
     System.out.println(" --singleSession        The users' sessions will be kept alive throughout the whole run if possible");
-    System.out.println(" --showUrls        Every Url is printed out when requested");
+    System.out.println("");
+
+    System.out.println("URLs: [-s] URL[POST[POST-BODY]]");
+    System.out.println(" URL                    URLs are expected in the general http://site/file.html?page=123 way.");
+    System.out.println("                        Also https is supported, even though the certificate is not validated!");
+    System.out.println(" POST                   Add POST at the end of the URL and all data after POST will be posted.");
+    System.out.println(" --showUrls             Every Url is printed out when requested");
+    System.out.println(" --csrf                 This URL will be requested only once per user to retrieve the CSRF token");
+    System.out.println("                        that the page at this url holds.");
     System.out.println(
-        " --csrf     This URL will be requested only once per user to retrieve the CSRF token that the page at this url holds.");
-    System.out.println(" URL       URLs are expected in the general http://site/file.html?page=123 way.");
-    System.out.println("           Also https is supported, even though the certificate is not validated!");
-    System.out.println(" POST      Add POST at the end of the URL and all data after POST will be posted.");
+        " -s                     This URL will be requested only once, but for each user (i.e. add to basket, login etc)");
 
     System.out.println("");
     System.out.println("Output:");
@@ -661,7 +673,7 @@ public class Main implements Runnable {
         assignNewSession = false;
       }
 
-      hc.addRequestProperty("User-Agent", "novomind/webtest");
+      hc.addRequestProperty("User-Agent", getUserAgent());
       hc.addRequestProperty("Accept-Encoding", "gzip");
 
       if (username != null && password != null) {
@@ -824,6 +836,15 @@ public class Main implements Runnable {
     }
     buffer = null;
     return time;
+  }
+
+  private String getUserAgent() {
+    if (alternateUserAgentForUsers) {
+      return "novomind/webtest_(" + userId + ")";
+    } else {
+
+      return "novomind/webtest";
+    }
   }
 
   static String encode(String source) {
