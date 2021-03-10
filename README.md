@@ -59,3 +59,7 @@ Five users request the site http://www.novomind.com/ for 1 minute with a 1 secon
 ```java -jar webtest.jar 1 1 10 https://www.shop.com/add/product/POSTitemId=dummyId --csrf https://www.shop.com/home```
 
  1 user requests for one minute with a request delay of 10 seconds and sends POST requests to the url https://www.shop.com/add/product/ over and over. The second url is requested only once to retrieve the csrf token for each user (--csrf).
+ 
+```java -jar webtest.jar 1 1 10 https://www.shop.com/add/product/POST{\"itemId\":\"123123\"}```
+
+ 1 user requests for one minute with a request delay of 10 seconds and sends POST requests to the url https://www.shop.com/add/product/ with following JSON {"itemId":"123123"} over and over.

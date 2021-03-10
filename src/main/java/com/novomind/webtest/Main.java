@@ -438,6 +438,10 @@ public class Main implements Runnable {
         "java -jar webtest.jar 1 1 10 https://www.shop.com/add/product/POSTitemId=dummyId --csrf https://www.shop.com/home");
     System.out.println(
         " 1 user requests for one minute with a request delay of 10 seconds and sends POST requests to the url https://www.shop.com/add/product/ over and over. The second url is requested only once to retrieve the csrf token for each user (--csrf).");
+    System.out.println(
+        "java -jar webtest.jar 1 1 10 https://www.shop.com/add/product/POST{\\\"itemId\\\":\\\"123123\\\"}");
+    System.out.println(
+        " 1 user requests for one minute with a request delay of 10 seconds and sends POST requests to the url https://www.shop.com/add/product/ with following JSON {\"itemId\":\"123123\"} over and over.");
   }
 
   private static Collection<String> loadUrlsFromFile(String filepath) throws IOException {
@@ -650,7 +654,8 @@ public class Main implements Runnable {
 
       URL u = new URL(url);
       if (showRequestedUrls) {
-        message("Requesting Url: " + url);
+        message("Requesting Url: " + url +
+            (postData.isEmpty() ? "" : "; postData: " + postData));
       }
 
       HttpURLConnection hc = (HttpURLConnection) u.openConnection();
@@ -682,7 +687,14 @@ public class Main implements Runnable {
       // else
       if (post) {
         hc.setRequestMethod("POST");
-        hc.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+        if(postData.contains("{")  && postData.contains("}")) {
+          hc.setRequestProperty("Content-Type", "application/json; utf-8");
+          hc.setRequestProperty("Accept", "application/json");
+        } else {
+          hc.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        }
+
         hc.setRequestProperty("Content-Length", "" + Integer.toString(postData.getBytes().length));
         hc.setRequestProperty("X-Csrf-Token", csrfTokens[user_id]);
         hc.setDoOutput(true);
@@ -714,6 +726,7 @@ public class Main implements Runnable {
             String session = val.substring(0, val.indexOf(";"));
             if (!session.equals(sessionIDs[user_id])) {
               sessionIDs[user_id] = val.substring(0, val.indexOf(";"));
+              csrfTokens[user_id] = null;
               message("saved session id " + sessionIDs[user_id] + ", cookie was " + val);
             }
           } else if (val.startsWith(customSessionIDCookie)) {
