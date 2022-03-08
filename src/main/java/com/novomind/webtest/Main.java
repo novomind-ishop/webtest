@@ -77,7 +77,6 @@ public class Main implements Runnable {
   static long lastLen;
   static long totalLen = 0;
   static int errorCount = 0;
-  static final int MAX_ERRORS = 100;
 
   static Object lock = new Object();
 
@@ -534,9 +533,6 @@ public class Main implements Runnable {
         realSleep(t2 / 1000000);
       } else {
         doStep(userId, step++);
-        if (errorCount >= MAX_ERRORS) {
-          break;
-        }
       }
     }
   }
